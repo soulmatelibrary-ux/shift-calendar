@@ -1,7 +1,7 @@
 // Service Worker — 교대근무 일정표 PWA
 // Cache-First for static assets, Network-First for Supabase API
 
-const CACHE_NAME = 'shiftcal-v1';
+const CACHE_NAME = 'shiftcal-v3';
 const STATIC_ASSETS = [
   './shiftcal.html',
   './manifest.json'
