@@ -945,9 +945,9 @@ function getMemoTagText(line) {
   const m = line.match(/^(연차|대체|대휴|교육|출장|기타):(.+?)(\(.+\))?$/);
   if (m) {
     const name = m[2].trim();
-    return m[1] + (name ? ':' + name.slice(0, 2) : '');
+    return m[1] + (name ? ':' + name.slice(0, 3) : '');
   }
-  return line.slice(0, 4);
+  return line.slice(0, 6);
 }
 
 function getMemoTagClass(line) {
