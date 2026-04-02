@@ -243,9 +243,19 @@ textarea{resize:vertical;min-height:72px;}
 .shift-CD{background:#fecaca;color:#b91c1c;border-color:#ef4444;}
 .shift-DA{background:#fed7aa;color:#c2410c;border-color:#f97316;}
 
-.memo-dot{
-  width:5px;height:5px;border-radius:50%;
-  background:#10b981;flex-shrink:0;
+.memo-tag{
+  width:100%;font-size:9px;font-weight:600;
+  padding:1px 3px;border-radius:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  line-height:1.4;
+}
+.mt-red {background:#fee2e2;color:#b91c1c;}
+.mt-blue{background:#dbeafe;color:#1d4ed8;}
+.mt-green{background:#d1fae5;color:#065f46;}
+.mt-gray{background:#f3f4f6;color:#4b5563;}
+.memo-more{
+  font-size:9px;color:var(--g5);font-weight:600;
+  width:100%;text-align:right;padding-right:2px;line-height:1.2;
 }
 
 /* ─── Bottom Sheet / Modal ──────────────────────────────── */
@@ -787,10 +797,19 @@ function makeCell(dt, other) {
   }
   cell.appendChild(top);
 
-  if (memos.length > 0) {
-    const dot   = document.createElement('div');
-    dot.className = 'memo-dot';
-    cell.appendChild(dot);
+  if (memos.length > 0 && !other) {
+    memos.slice(0, 2).forEach(line => {
+      const tag = document.createElement('div');
+      tag.className = 'memo-tag ' + getMemoTagClass(line);
+      tag.textContent = getMemoTagText(line);
+      cell.appendChild(tag);
+    });
+    if (memos.length > 2) {
+      const more = document.createElement('div');
+      more.className = 'memo-more';
+      more.textContent = `+${memos.length - 2}`;
+      cell.appendChild(more);
+    }
   }
 
   cell.addEventListener('click', () => openSheet(dStr));
@@ -920,6 +939,22 @@ function rebuildSheet() {
   });
 
   bindAddForm();
+}
+
+function getMemoTagText(line) {
+  const m = line.match(/^(연차|대체|대휴|교육|출장|기타):(.+?)(\(.+\))?$/);
+  if (m) {
+    const name = m[2].trim();
+    return m[1] + (name ? ':' + name.slice(0, 2) : '');
+  }
+  return line.slice(0, 4);
+}
+
+function getMemoTagClass(line) {
+  if (/^(연차|대휴|교육)/.test(line)) return 'mt-red';
+  if (/^(대체|출장)/.test(line))      return 'mt-blue';
+  if (/^기타/.test(line))             return 'mt-gray';
+  return 'mt-green';
 }
 
 function fmtLine(line) {
