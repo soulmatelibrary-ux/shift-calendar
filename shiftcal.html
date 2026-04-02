@@ -24,6 +24,8 @@
   --red:#dc2626;--grn:#16a34a;
   --g0:#ffffff;--g1:#f9fafb;--g2:#f3f4f6;--g3:#e5e7eb;
   --g4:#d1d5db;--g5:#9ca3af;--g6:#6b7280;--g7:#374151;--g8:#1f2937;--g9:#111827;
+  --holiday-bg:#fff6f5;--holiday-text:#bf3f36;
+  --weekend-bg:#fafcff;
   --r:12px;--sh:0 4px 24px rgba(0,0,0,.12);
   --safe-b:env(safe-area-inset-bottom,0px);
 }
@@ -104,8 +106,9 @@ textarea{resize:vertical;min-height:72px;}
 
 /* ─── Calendar Screen ───────────────────────────────────── */
 #screen-calendar{
-  display:flex;flex-direction:column;min-height:100dvh;
-  max-width:800px;margin:0 auto;
+  display:flex;flex-direction:column;height:100dvh;
+  max-width:800px;margin:0 auto;overflow:hidden;
+  padding-bottom:var(--safe-b);
 }
 
 /* Header */
@@ -181,43 +184,60 @@ textarea{resize:vertical;min-height:72px;}
 .dow-cell:first-child{color:var(--red);}
 .dow-cell:last-child{color:var(--pri);}
 
-/* Calendar grid */
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border-left:1px solid var(--g3);}
+/* Calendar grid — 화면 꽉 채우기 */
+.cal-grid{
+  display:grid;grid-template-columns:repeat(7,1fr);
+  border-left:1px solid var(--g3);
+  flex:1;min-height:0;grid-auto-rows:1fr;
+}
 .cal-day{
   border-right:1px solid var(--g3);border-bottom:1px solid var(--g3);
-  padding:6px 4px 8px;min-height:72px;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;gap:3px;
-  background:var(--g0);position:relative;
+  padding:5px 3px 6px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  background:var(--g0);position:relative;overflow:hidden;
   -webkit-tap-highlight-color:transparent;transition:background .1s;
 }
 .cal-day:active{background:var(--g2);}
 .cal-day.other-month{background:var(--g1);}
 .cal-day.other-month .day-num{color:var(--g4);}
-.cal-day.is-sun .day-num{color:var(--red);}
+.cal-day.other-month .shift-badge{opacity:.3;}
+/* 주말·공휴일 */
+.cal-day.is-sat{background:var(--weekend-bg);}
+.cal-day.is-sun{background:var(--weekend-bg);}
+.cal-day.is-holiday{background:var(--holiday-bg)!important;}
+.cal-day.is-sun .day-num{color:var(--holiday-text);}
 .cal-day.is-sat .day-num{color:var(--pri);}
-.cal-day.is-holiday .day-num{color:var(--red)!important;}
-.cal-day.is-today{background:#eff6ff;}
+.cal-day.is-holiday .day-num{color:var(--holiday-text)!important;}
+/* 오늘 */
+.cal-day.is-today{background:#eff6ff;box-shadow:inset 0 0 0 1.5px var(--pri);}
 /* 내 조 근무일 강조 */
 .cal-day.my-shift{background:#f0fdf4;}
 /* 다른 조 날짜 흐리게 (필터 모드) */
 .cal-day.dim-shift .day-num{color:var(--g4)!important;}
-.cal-day.dim-shift .shift-badge{opacity:.35;}
-.cal-day.dim-shift .memo-dot{opacity:.3;}
+.cal-day.dim-shift .shift-badge{opacity:.3;}
+.cal-day.dim-shift .memo-dot{opacity:.25;}
 
 .day-num{
-  width:28px;height:28px;
+  width:26px;height:26px;
   display:flex;align-items:center;justify-content:center;
-  font-size:14px;font-weight:500;border-radius:50%;flex-shrink:0;
+  font-size:13px;font-weight:600;border-radius:50%;flex-shrink:0;color:var(--g8);
 }
 .is-today .day-num{background:var(--pri);color:#fff!important;font-weight:700;}
 
+/* 교대조 뱃지 — 원본과 동일한 색상 */
 .shift-badge{
-  font-size:10px;font-weight:700;padding:1px 6px;
-  border-radius:4px;background:#e0e7ff;color:#3730a3;line-height:1.5;
+  font-size:10px;font-weight:700;padding:1px 5px;
+  border-radius:4px;line-height:1.5;white-space:nowrap;
+  background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc;
 }
+.shift-AB{background:#bbf7d0!important;color:#166534!important;border-color:#16a34a!important;}
+.shift-BC{background:#bfdbfe!important;color:#1d4ed8!important;border-color:#3b82f6!important;}
+.shift-CD{background:#fecaca!important;color:#b91c1c!important;border-color:#ef4444!important;}
+.shift-DA{background:#fed7aa!important;color:#c2410c!important;border-color:#f97316!important;}
+
 .memo-dot{
   width:5px;height:5px;border-radius:50%;
-  background:var(--pri);position:absolute;bottom:5px;
+  background:#10b981;position:absolute;bottom:4px;
 }
 
 /* ─── Bottom Sheet / Modal ──────────────────────────────── */
@@ -278,7 +298,7 @@ textarea{resize:vertical;min-height:72px;}
 }
 .shift-row .s-badge{
   font-size:13px;font-weight:700;padding:3px 10px;
-  border-radius:6px;background:#e0e7ff;color:#3730a3;
+  border-radius:6px;border:1.5px solid currentColor;
 }
 .readonly-note{
   font-size:12px;color:var(--g5);padding:8px 12px;
@@ -424,7 +444,6 @@ textarea{resize:vertical;min-height:72px;}
   </div>
 
   <div class="cal-grid" id="cal-grid"></div>
-  <div style="height:var(--safe-b)"></div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
@@ -737,7 +756,7 @@ function makeCell(dt, other) {
 
   if (!other) {
     const badge       = document.createElement('div');
-    badge.className   = 'shift-badge';
+    badge.className   = `shift-badge shift-${shift}`;
     badge.textContent = shift;
     cell.appendChild(badge);
   }
@@ -821,7 +840,7 @@ function rebuildSheet() {
 
   let html = `<div class="shift-row">
     <span>교대조</span>
-    <span class="s-badge">${escH(shift)}</span>
+    <span class="s-badge shift-badge shift-${escH(shift)}">${escH(shift)}</span>
   </div>`;
 
   if (isPast) {
