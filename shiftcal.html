@@ -192,7 +192,7 @@ textarea{resize:vertical;min-height:72px;}
 }
 .cal-day{
   border-right:1px solid var(--g3);border-bottom:1px solid var(--g3);
-  padding:5px 3px 6px;cursor:pointer;
+  padding:4px 2px 5px;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;gap:2px;
   background:var(--g0);position:relative;overflow:hidden;
   -webkit-tap-highlight-color:transparent;transition:background .1s;
@@ -200,44 +200,52 @@ textarea{resize:vertical;min-height:72px;}
 .cal-day:active{background:var(--g2);}
 .cal-day.other-month{background:var(--g1);}
 .cal-day.other-month .day-num{color:var(--g4);}
-.cal-day.other-month .shift-badge{opacity:.3;}
+.cal-day.other-month .shift-badge{opacity:.25;}
 /* 주말·공휴일 */
 .cal-day.is-sat{background:var(--weekend-bg);}
 .cal-day.is-sun{background:var(--weekend-bg);}
 .cal-day.is-holiday{background:var(--holiday-bg)!important;}
-.cal-day.is-sun .day-num{color:var(--holiday-text);}
+.cal-day.is-sun .day-num,.cal-day.is-sun .shift-badge{color:var(--holiday-text)!important;}
 .cal-day.is-sat .day-num{color:var(--pri);}
 .cal-day.is-holiday .day-num{color:var(--holiday-text)!important;}
+.cal-day.is-holiday .shift-badge{
+  background:#ffe4e1!important;color:var(--holiday-text)!important;border-color:#fca5a5!important;
+}
 /* 오늘 */
 .cal-day.is-today{background:#eff6ff;box-shadow:inset 0 0 0 1.5px var(--pri);}
 /* 내 조 근무일 강조 */
 .cal-day.my-shift{background:#f0fdf4;}
 /* 다른 조 날짜 흐리게 (필터 모드) */
 .cal-day.dim-shift .day-num{color:var(--g4)!important;}
-.cal-day.dim-shift .shift-badge{opacity:.3;}
-.cal-day.dim-shift .memo-dot{opacity:.25;}
+.cal-day.dim-shift .shift-badge{opacity:.28;}
+.cal-day.dim-shift .memo-dot{opacity:.2;}
 
+/* 셀 상단: 날짜숫자 + 교대뱃지 가로 배치 */
+.cell-top{
+  display:flex;align-items:center;justify-content:center;gap:2px;
+  width:100%;flex:1;
+}
 .day-num{
-  width:26px;height:26px;
+  width:22px;height:22px;
   display:flex;align-items:center;justify-content:center;
-  font-size:13px;font-weight:600;border-radius:50%;flex-shrink:0;color:var(--g8);
+  font-size:12px;font-weight:600;border-radius:50%;flex-shrink:0;color:var(--g8);
 }
 .is-today .day-num{background:var(--pri);color:#fff!important;font-weight:700;}
 
 /* 교대조 뱃지 — 원본과 동일한 색상 */
 .shift-badge{
-  font-size:10px;font-weight:700;padding:1px 5px;
-  border-radius:4px;line-height:1.5;white-space:nowrap;
+  font-size:9px;font-weight:700;padding:1px 4px;
+  border-radius:4px;line-height:1.6;white-space:nowrap;
   background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc;
 }
-.shift-AB{background:#bbf7d0!important;color:#166534!important;border-color:#16a34a!important;}
-.shift-BC{background:#bfdbfe!important;color:#1d4ed8!important;border-color:#3b82f6!important;}
-.shift-CD{background:#fecaca!important;color:#b91c1c!important;border-color:#ef4444!important;}
-.shift-DA{background:#fed7aa!important;color:#c2410c!important;border-color:#f97316!important;}
+.shift-AB{background:#bbf7d0;color:#166534;border-color:#16a34a;}
+.shift-BC{background:#bfdbfe;color:#1d4ed8;border-color:#3b82f6;}
+.shift-CD{background:#fecaca;color:#b91c1c;border-color:#ef4444;}
+.shift-DA{background:#fed7aa;color:#c2410c;border-color:#f97316;}
 
 .memo-dot{
   width:5px;height:5px;border-radius:50%;
-  background:#10b981;position:absolute;bottom:4px;
+  background:#10b981;flex-shrink:0;
 }
 
 /* ─── Bottom Sheet / Modal ──────────────────────────────── */
@@ -294,11 +302,22 @@ textarea{resize:vertical;min-height:72px;}
 .shift-row{
   display:flex;align-items:center;gap:8px;
   padding:10px 14px;background:var(--g1);border-radius:8px;
-  font-size:14px;color:var(--g6);
+  font-size:14px;color:var(--g6);flex-wrap:wrap;
 }
 .shift-row .s-badge{
   font-size:13px;font-weight:700;padding:3px 10px;
   border-radius:6px;border:1.5px solid currentColor;
+}
+.shift-sel-wrap{display:flex;gap:5px;flex-wrap:wrap;}
+.shift-sel-btn{
+  padding:4px 10px;border-radius:6px;cursor:pointer;
+  font-size:13px;font-weight:700;border-width:1.5px;border-style:solid;
+  transition:transform .1s,box-shadow .1s;
+}
+.shift-sel-btn.sel-active{box-shadow:0 0 0 2px var(--g8);transform:scale(1.08);}
+.shift-custom-inp{
+  width:90px;padding:4px 8px;font-size:13px;border-radius:6px;
+  border:1.5px solid var(--g3);text-transform:uppercase;
 }
 .readonly-note{
   font-size:12px;color:var(--g5);padding:8px 12px;
@@ -423,8 +442,11 @@ textarea{resize:vertical;min-height:72px;}
     <button class="cal-nav-btn" id="btn-next" aria-label="다음 달">▶</button>
     <button class="cal-today-btn" id="btn-today">오늘</button>
     <button class="cal-icon-btn" id="btn-refresh" title="새로고침">↻</button>
+    <button class="cal-icon-btn" id="btn-json-dl" title="JSON 다운로드">⬇</button>
+    <button class="cal-icon-btn" id="btn-json-ul" title="JSON 업로드">⬆</button>
     <button class="cal-icon-btn" id="btn-logout" title="로그아웃">⏻</button>
   </div>
+  <input type="file" id="json-file-input" accept=".json" style="display:none">
 
   <!-- 필터 표시줄 -->
   <div class="cal-subheader" id="filter-bar">
@@ -749,17 +771,21 @@ function makeCell(dt, other) {
     (activeTeam && !isMyTeam && !other ? ' dim-shift' : '');
   cell.dataset.date = dStr;
 
+  const top = document.createElement('div');
+  top.className = 'cell-top';
+
   const num = document.createElement('div');
   num.className   = 'day-num';
   num.textContent = dt.getDate();
-  cell.appendChild(num);
+  top.appendChild(num);
 
   if (!other) {
     const badge       = document.createElement('div');
     badge.className   = `shift-badge shift-${shift}`;
     badge.textContent = shift;
-    cell.appendChild(badge);
+    top.appendChild(badge);
   }
+  cell.appendChild(top);
 
   if (memos.length > 0) {
     const dot   = document.createElement('div');
@@ -838,9 +864,16 @@ function rebuildSheet() {
   const memos  = row.memo || [];
   const isPast = isPastMonth(_curDate);
 
+  // 교대조 편집 행
+  const shiftBtns = ['AB','BC','CD','DA']
+    .map(s => `<button class="shift-sel-btn shift-badge shift-${s}${shift===s?' sel-active':''}" data-shift="${s}">${s}</button>`)
+    .join('');
   let html = `<div class="shift-row">
-    <span>교대조</span>
-    <span class="s-badge shift-badge shift-${escH(shift)}">${escH(shift)}</span>
+    <span style="flex-shrink:0">교대조</span>
+    <div class="shift-sel-wrap">${shiftBtns}</div>
+    ${isPast ? '' : `<input class="shift-custom-inp" id="shift-custom-inp" maxlength="4"
+      placeholder="직접입력" value="${!['AB','BC','CD','DA'].includes(shift)?escH(shift):''}"
+      style="text-transform:uppercase">`}
   </div>`;
 
   if (isPast) {
@@ -875,6 +908,17 @@ function rebuildSheet() {
   body.querySelectorAll('.memo-del').forEach(btn => {
     btn.addEventListener('click', () => onDelMemo(parseInt(btn.dataset.idx)));
   });
+
+  // 교대조 버튼
+  body.querySelectorAll('.shift-sel-btn').forEach(btn => {
+    btn.addEventListener('click', () => onShiftChange(btn.dataset.shift));
+  });
+  const customInp = body.querySelector('#shift-custom-inp');
+  customInp?.addEventListener('change', () => {
+    const v = customInp.value.trim().toUpperCase();
+    if (v) onShiftChange(v);
+  });
+
   bindAddForm();
 }
 
@@ -890,7 +934,7 @@ function buildAddForm() {
       <button class="add-open-btn" id="add-open-btn">＋ 일정 추가</button>
     </div>`;
   }
-  const types = ['메모','연차','대체','대휴'];
+  const types = ['메모','연차','대체','대휴','교육','출장','기타'];
   let f = `<div class="add-card active" id="add-card">
     <div class="type-tabs">
       ${types.map(t =>
@@ -903,6 +947,9 @@ function buildAddForm() {
   } else if (_addType === '대휴') {
     f += `<select id="add-input">${staffOpts(_curDate)}</select>
           <input type="date" id="add-ref" placeholder="원 대체일 (선택)" style="margin-top:4px">`;
+  } else if (['교육','출장','기타'].includes(_addType)) {
+    f += `<select id="add-input">${staffOpts(_curDate)}</select>
+          <input type="text" id="add-ref" placeholder="${_addType}명/비고 (선택)" style="margin-top:4px">`;
   } else {
     f += `<select id="add-input">${staffOpts(_curDate)}</select>`;
   }
@@ -956,6 +1003,9 @@ async function onSaveMemo() {
   } else if (_addType === '대휴') {
     const ref = document.getElementById('add-ref')?.value;
     line = `대휴:${val}` + (ref ? `(${ref})` : '');
+  } else if (['교육','출장','기타'].includes(_addType)) {
+    const ref = document.getElementById('add-ref')?.value.trim();
+    line = `${_addType}:${val}` + (ref ? `(${ref})` : '');
   } else {
     line = `${_addType}:${val}`;
   }
@@ -1010,6 +1060,87 @@ async function writeMemo(dateStr, newMemo, existingRow) {
       date: dateStr, shift: null, memo: newMemo, source: 'mobile', updated_at: now
     }, 'resolution=merge-duplicates,return=minimal');
   }
+}
+
+async function onShiftChange(newShift) {
+  if (isPastMonth(_curDate)) { toast('지난 달은 수정할 수 없습니다'); return; }
+  if (!newShift) return;
+  newShift = newShift.toUpperCase();
+  const now = new Date().toISOString();
+  try {
+    const existing = _monthData[_curDate];
+    if (existing) {
+      await sbPatch('shift_data', `date=eq.${_curDate}`, { shift: newShift, updated_at: now });
+    } else {
+      await sbPost('shift_data',
+        { date: _curDate, shift: newShift, memo: [], source: 'mobile', updated_at: now },
+        'resolution=merge-duplicates,return=minimal');
+    }
+    if (!_monthData[_curDate]) _monthData[_curDate] = { date: _curDate, shift: null, memo: [] };
+    _monthData[_curDate].shift = newShift;
+    rebuildSheet();
+    renderCalendar();
+    toast(`교대조 → ${newShift}`);
+  } catch(e) { toast('저장 실패: ' + e.message); }
+}
+
+/* ── JSON 다운로드 ────────────────────────────────────────── */
+async function downloadJson() {
+  spinner(true);
+  try {
+    const rows = await sbGet('shift_data', 'select=date,shift,memo,repeat_type&order=date');
+    const out = {};
+    rows.forEach(r => {
+      if (r.shift || (r.memo && r.memo.length) || r.repeat_type) {
+        out[r.date] = {};
+        if (r.shift) out[r.date].shift = r.shift;
+        if (r.memo && r.memo.length) out[r.date].memo = r.memo;
+        if (r.repeat_type) out[r.date].repeat = r.repeat_type;
+      }
+    });
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `shiftcal_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('JSON 다운로드 완료');
+  } catch(e) { toast('다운로드 실패: ' + e.message); }
+  finally { spinner(false); }
+}
+
+/* ── JSON 업로드 ─────────────────────────────────────────── */
+async function uploadJson(file) {
+  if (!file) return;
+  spinner(true);
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    // shiftCalendar_data.json 형식: { "YYYY-MM-DD": { shift, memo, repeat } }
+    // 또는 중첩 형식 지원
+    const rows = [];
+    const entries = data.cal || data; // cal 키 없으면 최상위가 날짜 데이터
+    for (const [date, val] of Object.entries(entries)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      rows.push({
+        date,
+        shift:       val.shift || null,
+        memo:        Array.isArray(val.memo) ? val.memo : [],
+        repeat_type: val.repeat || null,
+        source:      'desktop',
+        updated_at:  new Date().toISOString()
+      });
+    }
+    if (!rows.length) { toast('날짜 데이터가 없습니다'); return; }
+    // 100건씩 나눠서 UPSERT
+    for (let i = 0; i < rows.length; i += 100) {
+      await sbPost('shift_data', rows.slice(i, i + 100), 'resolution=merge-duplicates,return=minimal');
+    }
+    toast(`${rows.length}건 업로드 완료`);
+    await Promise.all([loadMonth(curY, curM), loadYearData(curY), loadCarry(curY)]);
+    renderCalendar();
+  } catch(e) { toast('업로드 실패: ' + e.message); }
+  finally { spinner(false); }
 }
 
 function updateLocalCache(dateStr, newMemo) {
@@ -1151,6 +1282,14 @@ document.getElementById('btn-refresh').addEventListener('click', async () => {
 // Logout
 document.getElementById('btn-logout').addEventListener('click', () => {
   if (confirm('로그아웃하시겠습니까?')) doLogout();
+});
+document.getElementById('btn-json-dl').addEventListener('click', downloadJson);
+document.getElementById('btn-json-ul').addEventListener('click', () => {
+  document.getElementById('json-file-input').click();
+});
+document.getElementById('json-file-input').addEventListener('change', e => {
+  if (e.target.files[0]) uploadJson(e.target.files[0]);
+  e.target.value = '';
 });
 
 // 전체 달력 보기 토글
