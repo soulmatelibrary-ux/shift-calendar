@@ -460,9 +460,15 @@ const H = {
   'Content-Type': 'application/json'
 };
 
+function sbSignal() {
+  // 10초 타임아웃 (fetch 기본값은 무한 대기)
+  try { return AbortSignal.timeout(10000); } catch { return undefined; }
+}
+
 async function sbGet(table, qs = '') {
-  const r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`, { headers: H });
-  if (!r.ok) throw new Error(`GET ${table}: ${await r.text()}`);
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`,
+    { headers: H, signal: sbSignal() });
+  if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
   return r.json();
 }
 
@@ -470,18 +476,20 @@ async function sbPost(table, body, prefer = 'return=minimal') {
   const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
     method: 'POST',
     headers: { ...H, 'Prefer': prefer },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: sbSignal()
   });
-  if (!r.ok) throw new Error(`POST ${table}: ${await r.text()}`);
+  if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
 }
 
 async function sbPatch(table, filter, body) {
   const r = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
     method: 'PATCH',
     headers: { ...H, 'Prefer': 'return=minimal' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: sbSignal()
   });
-  if (!r.ok) throw new Error(`PATCH ${table}: ${await r.text()}`);
+  if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
 }
 
 /* ── Auth (localStorage 영구 유지) ──────────────────────── */
