@@ -58,18 +58,47 @@ textarea{resize:vertical;min-height:72px;}
 #screen-login{
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   min-height:100dvh;padding:24px;gap:16px;
+  background:#0a0a0a;
 }
 .login-card{
-  background:var(--g0);border-radius:var(--r);box-shadow:var(--sh);
-  padding:36px 28px;width:100%;max-width:360px;
-  display:flex;flex-direction:column;gap:18px;
+  background:#161616;border-radius:var(--r);
+  border:1px solid #2a2a2a;
+  box-shadow:0 8px 48px rgba(0,0,0,.7);
+  padding:40px 28px;width:100%;max-width:360px;
+  display:flex;flex-direction:column;gap:20px;
 }
-.login-title{font-size:21px;font-weight:700;color:var(--g9);text-align:center;}
+.login-brand{
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+}
+.login-icon{
+  width:60px;height:60px;
+  background:linear-gradient(135deg,#1d4ed8 0%,#3b82f6 100%);
+  border-radius:16px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 20px rgba(37,99,235,.4);
+}
+.login-corp{
+  font-size:11px;font-weight:500;color:#4b5563;
+  letter-spacing:.12em;text-transform:uppercase;
+}
+.login-dept{
+  font-size:14px;font-weight:600;color:#9ca3af;letter-spacing:.03em;
+}
+.login-title{font-size:22px;font-weight:700;color:#f9fafb;text-align:center;}
 .login-sub{font-size:13px;color:var(--g5);text-align:center;margin-top:-12px;}
 .form-group{display:flex;flex-direction:column;gap:6px;}
 .form-label{font-size:13px;font-weight:500;color:var(--g6);}
 .form-hint{font-size:12px;color:var(--g5);margin-top:4px;}
 .error-msg{color:var(--red);font-size:13px;text-align:center;}
+#screen-login .form-label{color:#6b7280;}
+#screen-login .form-hint{color:#4b5563;}
+#screen-login input{
+  background:#222;border-color:#333;color:#f3f4f6;
+}
+#screen-login input:focus{border-color:#3b82f6;}
+#screen-login input::placeholder{color:#4b5563;}
+#screen-login .btn-primary{background:linear-gradient(135deg,#1d4ed8,#3b82f6);box-shadow:0 4px 16px rgba(37,99,235,.35);}
+#screen-login .btn-secondary{background:#222;color:#9ca3af;border:1px solid #333;}
 
 /* ─── Calendar Screen ───────────────────────────────────── */
 #screen-calendar{
@@ -329,9 +358,18 @@ textarea{resize:vertical;min-height:72px;}
 ════════════════════════════════════════════════════════ -->
 <div id="screen-login">
   <div class="login-card">
-    <div>
+    <div class="login-brand">
+      <div class="login-icon">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+          <path d="M16 16h5v5"/>
+        </svg>
+      </div>
+      <div class="login-corp">Korea Airports Corporation</div>
+      <div class="login-dept">한국공항공사 시스템정보부</div>
       <div class="login-title">교대근무 일정표</div>
-      <div class="login-sub">시스템정보부</div>
     </div>
 
     <div class="form-group">
