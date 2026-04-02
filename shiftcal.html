@@ -215,10 +215,8 @@ textarea{resize:vertical;min-height:72px;}
 .cal-day.is-today{background:#eff6ff;box-shadow:inset 0 0 0 1.5px var(--pri);}
 /* 내 조 근무일 강조 */
 .cal-day.my-shift{background:#f0fdf4;}
-/* 다른 조 날짜 흐리게 (필터 모드) */
-.cal-day.dim-shift .day-num{color:var(--g4)!important;}
-.cal-day.dim-shift .shift-badge{opacity:.28;}
-.cal-day.dim-shift .memo-dot{opacity:.2;}
+/* 다른 조 날짜 흐리게 (필터 모드) — 원본과 동일하게 opacity 16% */
+.cal-day.dim-shift{opacity:.16;pointer-events:none;}
 
 /* 셀: 날짜숫자 좌상단 + 교대뱃지 우측 */
 .cal-day{align-items:flex-start!important;}
