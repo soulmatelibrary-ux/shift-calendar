@@ -1044,9 +1044,10 @@ async function goMonth(delta) {
 
 /* ── Full Init ───────────────────────────────────────────── */
 async function initApp() {
-  spinner(true);
   curY = todayDt.getFullYear();
   curM = todayDt.getMonth() + 1;
+  showScreen('calendar'); // 먼저 달력 화면으로 전환 후 데이터 로드
+  spinner(true);
   try {
     await Promise.all([
       loadMonth(curY, curM),
@@ -1055,12 +1056,12 @@ async function initApp() {
       loadNotices(),
       loadCarry(curY)
     ]);
-    showScreen('calendar');
     renderCalendar();
     initSwipe();
   } catch(e) {
-    toast('데이터 로드 실패: ' + e.message);
     console.error(e);
+    doLogout(); // 로드 실패 시 로그인으로 복귀
+    toast('연결 실패: ' + e.message);
   } finally {
     spinner(false);
   }
@@ -1145,6 +1146,11 @@ if (isAuthed()) {
   initApp();
 } else {
   showScreen('login');
+}
+
+// Service Worker 등록
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 </script>
 </body>
