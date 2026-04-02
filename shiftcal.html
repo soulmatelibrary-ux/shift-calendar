@@ -133,25 +133,14 @@ textarea{resize:vertical;min-height:72px;}
   -webkit-tap-highlight-color:transparent;white-space:nowrap;flex-shrink:0;
 }
 
-/* Sub header (filter bar) */
-.cal-subheader{
-  background:var(--g0);border-bottom:1px solid var(--g3);
-  padding:8px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+/* 조 필터 드롭다운 */
+.filter-select{
+  height:34px;padding:0 8px;border:1.5px solid var(--g3);border-radius:8px;
+  font-size:13px;font-weight:700;color:var(--g8);background:var(--g0);
+  cursor:pointer;flex-shrink:0;width:64px;
+  -webkit-appearance:none;appearance:none;
+  text-align:center;
 }
-.filter-label{font-size:13px;color:var(--g6);}
-.filter-badge{
-  display:inline-flex;align-items:center;
-  padding:4px 12px;border-radius:20px;
-  font-size:13px;font-weight:700;
-  background:#e0e7ff;color:#3730a3;
-}
-.all-view-btn{
-  margin-left:auto;padding:5px 12px;border:none;
-  background:var(--g2);color:var(--g6);border-radius:8px;
-  font-size:12px;font-weight:600;cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
-}
-.all-view-btn.active{background:var(--pri-lt);color:var(--pri);}
 
 /* Notices */
 #notices-banner{
@@ -450,6 +439,13 @@ textarea{resize:vertical;min-height:72px;}
     <button class="cal-nav-btn" id="btn-prev" aria-label="이전 달">◀</button>
     <div class="cal-month-label" id="month-label"></div>
     <button class="cal-nav-btn" id="btn-next" aria-label="다음 달">▶</button>
+    <select id="filter-select" class="filter-select">
+      <option value="ALL">ALL</option>
+      <option value="A">A</option>
+      <option value="B">B</option>
+      <option value="C">C</option>
+      <option value="D">D</option>
+    </select>
     <button class="cal-today-btn" id="btn-today">오늘</button>
     <button class="cal-icon-btn" id="btn-refresh" title="새로고침">↻</button>
     <button class="cal-icon-btn" id="btn-json-dl" title="JSON 다운로드">⬇</button>
@@ -457,13 +453,6 @@ textarea{resize:vertical;min-height:72px;}
     <button class="cal-icon-btn" id="btn-logout" title="로그아웃">⏻</button>
   </div>
   <input type="file" id="json-file-input" accept=".json" style="display:none">
-
-  <!-- 필터 표시줄 -->
-  <div class="cal-subheader" id="filter-bar">
-    <span class="filter-label">보기:</span>
-    <span class="filter-badge" id="filter-badge"></span>
-    <button class="all-view-btn" id="all-view-btn">전체 달력 보기</button>
-  </div>
 
   <div id="notices-banner" hidden></div>
   <div id="doh-bar" hidden></div>
@@ -566,9 +555,12 @@ async function doLogin(id, pw) {
 
 function applyFilter() {
   const stored = localStorage.getItem(AUTH_KEY) || '';
-  _authId      = (stored === 'all') ? '' : stored;
-  _filterTeam  = SHIFT_MAP[_authId] || null;
-  _showAll     = false;
+  _authId     = (stored === 'all') ? '' : stored;
+  _filterTeam = SHIFT_MAP[_authId] || null;
+  _showAll    = !_filterTeam; // 교대 외 직원은 전체보기 기본
+  // 드롭다운 초기값 동기화
+  const sel = document.getElementById('filter-select');
+  if (sel) sel.value = _filterTeam || 'ALL';
 }
 
 function isAuthed() {
@@ -739,24 +731,9 @@ function renderCalendar() {
 }
 
 function renderFilterBar() {
-  const bar    = document.getElementById('filter-bar');
-  const badge  = document.getElementById('filter-badge');
-  const allBtn = document.getElementById('all-view-btn');
-
-  const activeTeam = (!_showAll && _filterTeam) ? _filterTeam : null;
-
-  if (activeTeam) {
-    bar.hidden   = false;
-    badge.textContent = `${activeTeam}조`;
-    allBtn.classList.remove('active');
-  } else if (_filterTeam) {
-    // 필터 있지만 전체보기 중
-    bar.hidden   = false;
-    badge.textContent = `${_filterTeam}조`;
-    allBtn.classList.add('active');
-  } else {
-    bar.hidden = true; // 교대 외 직원 (필터 없음)
-  }
+  // 드롭다운 선택값과 동기화
+  const sel = document.getElementById('filter-select');
+  if (sel) sel.value = (_filterTeam && !_showAll) ? _filterTeam : 'ALL';
 }
 
 function makeCell(dt, other) {
@@ -1328,8 +1305,16 @@ document.getElementById('json-file-input').addEventListener('change', e => {
 });
 
 // 전체 달력 보기 토글
-document.getElementById('all-view-btn').addEventListener('click', () => {
-  _showAll = !_showAll;
+// 조 필터 드롭다운
+document.getElementById('filter-select').addEventListener('change', e => {
+  const v = e.target.value;
+  if (v === 'ALL') {
+    _showAll = true;
+    _filterTeam = SHIFT_MAP[_authId] || null; // 원래 조는 유지
+  } else {
+    _showAll = false;
+    _filterTeam = v;
+  }
   renderCalendar();
 });
 
