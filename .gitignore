@@ -1,0 +1,26 @@
+# ── macOS ───────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ── 폐쇄망 전용 앱 (공개 금지) ──────────────────
+shiftCalendar.html
+shiftCalendar 복사본.html
+shiftCalendar_backup.html
+
+# ── 실제 데이터 파일 (직원·일정 개인정보) ─────────
+shiftCalendar_data.json
+shiftCalendar_data.backup.json
+shiftCalendar_master.json
+
+# ── 비밀번호·접속정보 포함 문서 ───────────────────
+supabase_setup.sql
+
+# ── 내부 전용 문서 ─────────────────────────────
+CLAUDE.md
+readme.txt
+
+# ── 개발 도구 ──────────────────────────────────
+.claude/
+docs/
