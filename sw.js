@@ -1,29 +1,19 @@
 // Service Worker — 교대근무 일정표 PWA
-// Cache-First for static assets, Network-First for Supabase API
+// HTML: Network-First (항상 최신 코드), 아이콘/manifest: Cache-First
 
-const CACHE_NAME = 'shiftcal-v3';
-const STATIC_ASSETS = [
-  './shiftcal.html',
-  './manifest.json'
-];
+const CACHE_NAME = 'shiftcal-v4';
 
-// Install: 정적 파일 캐시
+// Install: 즉시 활성화
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(STATIC_ASSETS))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil(self.skipWaiting());
 });
 
-// Activate: 이전 버전 캐시 삭제
+// Activate: 이전 버전 캐시 전체 삭제
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
@@ -31,24 +21,36 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Supabase API → Network-First (최신 데이터 우선)
+  // Supabase API → Network-First
   if (url.hostname.includes('supabase.co')) {
     event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // HTML 파일 → Network-First (항상 최신 코드 로드)
+  if (url.pathname.endsWith('.html')) {
+    event.respondWith(
       fetch(event.request)
+        .then(response => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+          return response;
+        })
         .catch(() => caches.match(event.request))
     );
     return;
   }
 
-  // 정적 파일 → Cache-First
+  // 아이콘, manifest 등 정적 파일 → Cache-First
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
       return fetch(event.request).then(response => {
-        // 성공적인 GET 응답만 캐시
         if (response.ok && event.request.method === 'GET') {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
         }
         return response;
       });
