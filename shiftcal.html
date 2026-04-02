@@ -1153,13 +1153,6 @@ document.addEventListener('keydown', e => {
 });
 
 /* ── Bootstrap ───────────────────────────────────────────── */
-// URL에 ?all 파라미터가 있으면 로그인 없이 전체 달력으로 진입 (테스트용)
-const _skipLogin = new URLSearchParams(location.search).has('all');
-if (_skipLogin && !isAuthed()) {
-  localStorage.setItem(AUTH_KEY, 'all');
-  applyFilter();
-}
-
 if (isAuthed()) {
   applyFilter();
   initApp();
@@ -1167,12 +1160,9 @@ if (isAuthed()) {
   showScreen('login');
 }
 
-// Service Worker 등록 (구버전 SW 자동 정리 후 재등록)
+// Service Worker 등록
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => {
-    const stale = regs.filter(r => !r.active || !r.active.scriptURL.endsWith('sw.js'));
-    return Promise.all(stale.map(r => r.unregister()));
-  }).then(() => navigator.serviceWorker.register('./sw.js')).catch(() => {});
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 </script>
 </body>
