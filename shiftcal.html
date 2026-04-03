@@ -1150,18 +1150,22 @@ function makeCell(dt, other) {
 /* ── Notices / DOH ──────────────────────────────────────── */
 // 오늘~3일 후 일정 메모를 티커용으로 수집
 function getUpcomingMemos() {
-  const items = [];
+  const items = []; // { text, is24h }
   const now = new Date();
   for (let i = 0; i < 4; i++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
     const key = fmtDate(d);
     const entry = _monthData[key] || _yearData[key];
-    if (!entry?.memo?.length) continue;
     const dayLabel = i === 0 ? '오늘' : i === 1 ? '내일' : `${d.getMonth()+1}/${d.getDate()}`;
+    // 24시간 근무 감지 (AA, BB, CC, DD)
+    const shift = entry?.shift || calcShift(key);
+    if (shift.length === 2 && shift[0] === shift[1] && /^[A-D]$/.test(shift[0])) {
+      items.push({ text: `[${dayLabel}] ${shift[0]}조 24시간 근무`, is24h: true });
+    }
+    if (!entry?.memo?.length) continue;
     entry.memo.forEach(line => {
-      // 연차, 대체, 대휴, 교육, 출장, 기타만 표시
       if (/^(연차|대체|대휴|교육|출장|기타):/.test(line)) {
-        items.push(`[${dayLabel}] ${fmtLine(line)}`);
+        items.push({ text: `[${dayLabel}] ${fmtLine(line)}`, is24h: false });
       }
     });
   }
@@ -1177,8 +1181,10 @@ function renderNotices() {
   const noticeItems = _notices.map(n =>
     `<span class="ticker-item"><span class="ticker-dot"></span>${escH(n.text)}</span>`
   );
-  const memoItems = getUpcomingMemos().map(m =>
-    `<span class="ticker-item" style="color:var(--grn)"><span class="ticker-dot" style="background:var(--grn)"></span>${escH(m)}</span>`
+  const memoItems = getUpcomingMemos().map(m => {
+    const color = m.is24h ? 'var(--red)' : 'var(--grn)';
+    return `<span class="ticker-item" style="color:${color};${m.is24h?'font-weight:800':''}"><span class="ticker-dot" style="background:${color}"></span>${escH(m.text)}</span>`;
+  }
   );
   const allItems = [...noticeItems, ...memoItems];
 
