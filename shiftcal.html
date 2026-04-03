@@ -571,7 +571,6 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
 .bb-btn:active{background:var(--g3);}
 .bb-icon{width:88px;}          /* 아이콘 전용 */
 .bb-text{padding:0 14px;min-width:88px;} /* 텍스트 버튼 */
-.bb-spacer{flex:1;}            /* 정렬용 스페이서 */
 /* select 스타일 override */
 .bb-select{
   -webkit-appearance:none;appearance:none;
@@ -1747,16 +1746,17 @@ async function onClearMemo() {
     const dataMap = {};
     rangeRows.forEach(r => { dataMap[r.date] = r; });
 
-    let cleared = 0;
-    for (const d of targetDates) {
-      const row = dataMap[d];
-      if (!row?.memo?.length) continue;
-      await sbPatch('shift_data', `date=eq.${d}`, {
-        memo: [], updated_at: new Date().toISOString()
+    const now = new Date().toISOString();
+    const toClear = targetDates.filter(d => dataMap[d]?.memo?.length);
+    if (toClear.length) {
+      // 범위 PATCH: 해당 날짜들 일괄 처리
+      const dateList = toClear.map(d => `"${d}"`).join(',');
+      await sbPatch('shift_data', `date=in.(${dateList})`, {
+        memo: [], updated_at: now
       });
-      updateLocalCache(d, []);
-      cleared++;
+      toClear.forEach(d => updateLocalCache(d, []));
     }
+    const cleared = toClear.length;
 
     rebuildSheet();
     renderCalendar();
@@ -1813,7 +1813,7 @@ async function onSaveMemo() {
     }
 
     let savedCount = 0;
-    const autoSub = _addType === '연차' && val && isShiftWorker(val, _curDate);
+    const isAutoSubType = _addType === '연차' && val;
     for (const dateStr of targetDates) {
       if (isPastMonth(dateStr)) continue;
       const existing = targetDates.length > 1
@@ -1825,6 +1825,7 @@ async function onSaveMemo() {
       const newMemo = [...existMemo, line];
 
       // 연차+대체 자동 추가: 교대근무자 연차 시 대체 자동 생성
+      const autoSub = isAutoSubType && isShiftWorker(val, dateStr);
       if (autoSub) {
         const subLine = `대체:${val}`;
         if (!newMemo.includes(subLine)) newMemo.push(subLine);
@@ -1862,7 +1863,7 @@ async function onSaveMemo() {
     _addOpen = false;
     rebuildSheet();
     renderCalendar();
-    const subMsg = autoSub ? ' (대체 자동 추가)' : '';
+    const subMsg = (isAutoSubType && savedCount) ? ' (대체 자동 추가)' : '';
     if (targetDates.length > 1) {
       toast(`${savedCount}일에 저장 완료${subMsg}`);
     } else {
