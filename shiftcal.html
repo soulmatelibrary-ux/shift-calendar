@@ -1108,22 +1108,48 @@ function makeCell(dt, other) {
 }
 
 /* ── Notices / DOH ──────────────────────────────────────── */
+// 오늘~3일 후 일정 메모를 티커용으로 수집
+function getUpcomingMemos() {
+  const items = [];
+  const now = new Date();
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const key = fmtDate(d);
+    const entry = _monthData[key] || _yearData[key];
+    if (!entry?.memo?.length) continue;
+    const dayLabel = i === 0 ? '오늘' : i === 1 ? '내일' : `${d.getMonth()+1}/${d.getDate()}`;
+    entry.memo.forEach(line => {
+      // 연차, 대체, 대휴, 교육, 출장, 기타만 표시
+      if (/^(연차|대체|대휴|교육|출장|기타):/.test(line)) {
+        items.push(`[${dayLabel}] ${fmtLine(line)}`);
+      }
+    });
+  }
+  return items;
+}
+
 function renderNotices() {
   const wrap  = document.getElementById('ticker-wrap');
   const track = document.getElementById('ticker-track');
   wrap.hidden = false;
-  if (!_notices.length) {
+
+  // 공지 + 향후 일정 메모 합치기
+  const noticeItems = _notices.map(n =>
+    `<span class="ticker-item"><span class="ticker-dot"></span>${escH(n.text)}</span>`
+  );
+  const memoItems = getUpcomingMemos().map(m =>
+    `<span class="ticker-item" style="color:var(--grn)"><span class="ticker-dot" style="background:var(--grn)"></span>${escH(m)}</span>`
+  );
+  const allItems = [...noticeItems, ...memoItems];
+
+  if (!allItems.length) {
     track.innerHTML = '<span class="ticker-item" style="color:var(--text-muted);font-weight:400">공지사항을 탭하여 추가하세요</span>';
     track.style.animation = 'none';
     return;
   }
-  // 텍스트를 두 번 반복 — 무한 루프 효과
-  const items = _notices.map(n =>
-    `<span class="ticker-item"><span class="ticker-dot"></span>${escH(n.text)}</span>`
-  ).join('');
-  track.innerHTML = items + items; // 복제로 seamless 루프
-  // 공지 수에 따라 스크롤 속도 조정
-  const speed = Math.max(12, _notices.length * 10);
+  const html = allItems.join('');
+  track.innerHTML = html + html; // 복제로 seamless 루프
+  const speed = Math.max(12, allItems.length * 8);
   track.style.animationDuration = speed + 's';
   track.style.animation = '';
 }
@@ -1192,9 +1218,9 @@ function openNoticeModal() {
       <div id="nm-add-form">
         <input type="text" id="nm-input" placeholder="공지 내용 입력..." maxlength="80">
         <div id="nm-date-row">
-          <input type="date" id="nm-start" title="시작일">
+          <input type="date" id="nm-start" title="시작일" value="${TODAY}">
           <span>~</span>
-          <input type="date" id="nm-end" title="종료일">
+          <input type="date" id="nm-end" title="종료일" value="${fmtDate(new Date(todayDt.getFullYear(), todayDt.getMonth(), todayDt.getDate() + 7))}">
         </div>
         <button id="nm-add-btn">추가</button>
       </div>
