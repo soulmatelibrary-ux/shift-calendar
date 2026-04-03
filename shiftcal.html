@@ -502,12 +502,28 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
 .type-tab.active{background:var(--pri);border-color:var(--pri);color:#fff;font-weight:600;}
 .add-actions{display:flex;gap:8px;}
 .add-actions .btn{flex:1;padding:12px;font-size:14px;}
+/* 기간 입력 */
+.add-range-row{display:flex;align-items:center;gap:6px;margin-top:4px;}
+.add-range-row label{font-size:13px;font-weight:600;color:var(--g6);display:flex;align-items:center;gap:4px;cursor:pointer;}
+.add-range-dates{display:none;gap:6px;align-items:center;margin-top:4px;}
+.add-range-dates.active{display:flex;}
+.add-range-dates input[type="date"]{flex:1;padding:8px 10px;font-size:13px;}
+.add-range-sep{font-size:13px;color:var(--g5);}
+/* 공지 관리 확장 */
+#nm-add-form{display:flex;flex-direction:column;gap:8px;padding:12px;border-top:1px solid var(--border);}
+#nm-date-row{display:flex;gap:6px;align-items:center;}
+#nm-date-row input[type="date"]{flex:1;padding:8px 10px;font-size:13px;}
+#nm-date-row span{font-size:12px;color:var(--g5);}
+.nm-dates{font-size:11px;color:var(--g5);margin-top:1px;}
+.nm-item-wrap{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;}
+.nm-edit{width:24px;height:24px;border:none;background:none;font-size:13px;color:var(--g5);cursor:pointer;flex-shrink:0;}
+.nm-edit:active{color:var(--pri);}
 
 /* ─── Bottom Bar ────────────────────────────────────────── */
 #bottom-bar{
   position:fixed;left:0;right:0;bottom:0;
   background:var(--bg-header);border-top:1px solid var(--border);
-  padding:8px 12px;padding-bottom:calc(8px + var(--safe-b));
+  padding:10px 12px;padding-bottom:calc(14px + var(--safe-b));
   display:flex;align-items:center;gap:7px;z-index:50;
   max-width:800px;margin:0 auto;
   /* full-width fix for fixed elements with max-width */
@@ -532,7 +548,7 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
   padding:0 10px;cursor:pointer;width:64px;
 }
 /* 달력 하단 여백 (bottom-bar 높이만큼) */
-#screen-calendar{padding-bottom:calc(60px + var(--safe-b))!important;}
+#screen-calendar{padding-bottom:calc(70px + var(--safe-b))!important;}
 
 /* ─── Loading & Toast ───────────────────────────────────── */
 .page-spinner{
@@ -611,7 +627,7 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
     <button class="cal-icon-btn" id="btn-dark">☀</button>
     <button class="cal-icon-btn" id="btn-logout" title="로그아웃">⏻</button>
   </div>
-  <input type="file" id="json-file-input" accept=".json" style="display:none">
+  <input type="file" id="json-file-input" accept=".json,.txt" style="display:none">
 
   <!-- 공지 티커 -->
   <div id="ticker-wrap" hidden>
@@ -634,7 +650,8 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
 ════════════════════════════════════════════════════════ -->
 <!-- 하단 고정 툴바 (달력화면) -->
 <div id="bottom-bar">
-  <button class="bb-btn bb-text" id="btn-today">오늘</button>
+  <button class="bb-btn bb-icon" id="btn-json-dl2" title="내보내기(Export)">⬆</button>
+  <button class="bb-btn bb-icon" id="btn-json-ul2" title="백업복구(Restore)">⬇</button>
   <select id="filter-select" class="bb-btn bb-select">
     <option value="ALL">ALL</option>
     <option value="A">A조</option>
@@ -643,9 +660,9 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
     <option value="D">D조</option>
   </select>
   <div class="bb-spacer"></div>
+  <button class="bb-btn bb-text" id="btn-today">오늘</button>
+  <div class="bb-spacer"></div>
   <button class="bb-btn bb-icon" id="btn-refresh" title="새로고침">↻</button>
-  <button class="bb-btn bb-text" id="btn-json-dl2">내보내기</button>
-  <button class="bb-btn bb-text" id="btn-json-ul2">백업복구</button>
 </div>
 
 <div id="sheet-backdrop" hidden></div>
@@ -713,6 +730,15 @@ async function sbPatch(table, filter, body) {
   if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
 }
 
+async function sbDelete(table, filter) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
+    method: 'DELETE',
+    headers: { ...H, 'Prefer': 'return=minimal' },
+    signal: sbSignal()
+  });
+  if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
+}
+
 /* ── Auth (localStorage 영구 유지) ──────────────────────── */
 // sc_auth 값: 'a'|'b'|'c'|'d'|'all'
 const AUTH_KEY  = 'sc_auth';
@@ -769,30 +795,77 @@ function isMyTeamDay(shift, team) {
 /* ── Holidays ───────────────────────────────────────────── */
 // 양력 고정 공휴일 (MM-DD → 이름)
 const FIXED_HOL = {
-  '01-01':'신정','03-01':'삼일절','05-05':'어린이날','06-06':'현충일',
-  '08-15':'광복절','10-03':'개천절','10-09':'한글날','12-25':'성탄절'
+  '01-01':'신정','03-01':'삼일절','05-01':'노동절','05-05':'어린이날',
+  '06-06':'현충일','08-15':'광복절','10-03':'개천절','10-09':'한글날','12-25':'성탄절'
 };
 // 음력 명절 (연도별 양력 날짜 → 이름)
 // 설날 연휴(전날·당일·다음날), 추석 연휴(전날·당일·다음날), 부처님오신날, 어버이날(X-법정 아님)
 const LUNAR_HOL = {
   // 2024
   '2024-02-09':'설날 전날','2024-02-10':'설날','2024-02-11':'설날 다음날',
-  '2024-02-12':'대체공휴일',
-  '2024-04-10':'총선(임시)','2024-05-15':'부처님오신날',
+  '2024-02-12':'대체공휴일(설날)',
+  '2024-04-10':'제22대 국회의원선거','2024-05-15':'부처님오신날',
+  '2024-06-01':'지방선거(임시)',
   '2024-09-16':'추석 전날','2024-09-17':'추석','2024-09-18':'추석 다음날',
   // 2025
-  '2025-01-28':'설날 전날','2025-01-29':'설날','2025-01-30':'설날 다음날',
-  '2025-05-05':'부처님오신날(어린이날)',
+  '2025-01-27':'대체공휴일(설날)','2025-01-28':'설날 전날','2025-01-29':'설날','2025-01-30':'설날 다음날',
+  '2025-03-03':'대체공휴일(삼일절)',
+  '2025-05-05':'부처님오신날(어린이날)','2025-05-06':'대체공휴일(어린이날)',
+  '2025-06-03':'대체공휴일(현충일)',
   '2025-10-05':'추석 전날','2025-10-06':'추석','2025-10-07':'추석 다음날',
-  '2025-10-08':'대체공휴일',
+  '2025-10-08':'대체공휴일(추석)',
   // 2026
   '2026-02-16':'설날 전날','2026-02-17':'설날','2026-02-18':'설날 다음날',
+  '2026-03-02':'대체공휴일(삼일절)',
   '2026-05-24':'부처님오신날',
+  '2026-06-04':'제8회 지방선거',
+  '2026-08-17':'대체공휴일(광복절)',
   '2026-09-24':'추석 전날','2026-09-25':'추석','2026-09-26':'추석 다음날',
+  '2026-10-05':'대체공휴일(개천절)',
   // 2027
   '2027-02-06':'설날 전날','2027-02-07':'설날','2027-02-08':'설날 다음날',
+  '2027-02-09':'대체공휴일(설날)',
   '2027-05-13':'부처님오신날',
   '2027-09-14':'추석 전날','2027-09-15':'추석','2027-09-16':'추석 다음날',
+  // 2028
+  '2028-01-25':'설날 전날','2028-01-26':'설날','2028-01-27':'설날 다음날',
+  '2028-01-28':'대체공휴일(설날)',
+  '2028-04-12':'제23대 국회의원선거',
+  '2028-05-02':'부처님오신날',
+  '2028-10-02':'추석 전날','2028-10-03':'추석','2028-10-04':'추석 다음날',
+  // 2029
+  '2029-02-12':'설날 전날','2029-02-13':'설날','2029-02-14':'설날 다음날',
+  '2029-05-20':'부처님오신날',
+  '2029-09-21':'추석 전날','2029-09-22':'추석','2029-09-23':'추석 다음날',
+  '2029-09-24':'대체공휴일(추석)',
+  // 2030
+  '2030-02-02':'설날 전날','2030-02-03':'설날','2030-02-04':'설날 다음날',
+  '2030-05-09':'부처님오신날',
+  '2030-06-05':'제9회 지방선거',
+  '2030-09-11':'추석 전날','2030-09-12':'추석','2030-09-13':'추석 다음날',
+  // 2031
+  '2031-01-22':'설날 전날','2031-01-23':'설날','2031-01-24':'설날 다음날',
+  '2031-05-28':'부처님오신날',
+  '2031-09-30':'추석 전날','2031-10-01':'추석','2031-10-02':'추석 다음날',
+  // 2032
+  '2032-02-10':'설날 전날','2032-02-11':'설날','2032-02-12':'설날 다음날',
+  '2032-04-14':'제24대 국회의원선거',
+  '2032-05-16':'부처님오신날',
+  '2032-09-19':'추석 전날','2032-09-20':'추석','2032-09-21':'추석 다음날',
+  // 2033
+  '2033-01-30':'설날 전날','2033-01-31':'설날','2033-02-01':'설날 다음날',
+  '2033-05-06':'부처님오신날',
+  '2033-09-07':'추석 전날','2033-09-08':'추석','2033-09-09':'추석 다음날',
+  // 2034
+  '2034-02-18':'설날 전날','2034-02-19':'설날','2034-02-20':'설날 다음날',
+  '2034-05-25':'부처님오신날',
+  '2034-06-07':'제10회 지방선거',
+  '2034-09-26':'추석 전날','2034-09-27':'추석','2034-09-28':'추석 다음날',
+  // 2035
+  '2035-02-07':'설날 전날','2035-02-08':'설날','2035-02-09':'설날 다음날',
+  '2035-02-10':'대체공휴일(설날)',
+  '2035-05-15':'부처님오신날',
+  '2035-09-15':'추석 전날','2035-09-16':'추석','2035-09-17':'추석 다음날',
 };
 // 공휴일 이름 반환 (없으면 null)
 function getHolidayName(y, m, d) {
@@ -824,13 +897,35 @@ function isPastMonth(dateStr) {
   return dateStr < thisMonthFirst();
 }
 
+function getDateRange(start, end, maxDays = 90) {
+  const result = [];
+  const s = new Date(start + 'T00:00:00');
+  const e = new Date(end + 'T00:00:00');
+  if (s > e) return [start];
+  const cur = new Date(s);
+  while (cur <= e && result.length < maxDays) {
+    result.push(fmtDate(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
+
+function isShiftWorker(staffName, dateStr) {
+  const s = _staff.find(r => r.name === staffName &&
+    (!r.from_date || r.from_date <= dateStr) &&
+    (!r.to_date || r.to_date >= dateStr));
+  return s && /^[A-D]$/.test(s.shift);
+}
+
 /* ── State ──────────────────────────────────────────────── */
 let curY, curM;
 let _monthData = {}; // 현재 달력 그리드 범위 데이터
 let _yearData  = {}; // 연간 전체 (DOH 계산용)
 let _staff     = [];
 let _notices   = [];
+let _allNotices = [];  // 관리 모달용 (만료 포함)
 let _carry     = {};
+let _lastSubName = ''; // 대체→대휴 이름 연동
 
 /* ── Data Loading ───────────────────────────────────────── */
 async function loadMonth(y, m) {
@@ -862,6 +957,7 @@ async function loadStaff() {
 async function loadNotices() {
   const rows = await sbGet('notices',
     `deleted_at=is.null&select=id,text,start_date,end_date&order=created_at.desc`);
+  _allNotices = rows;
   _notices = rows.filter(n =>
     (!n.start_date || n.start_date <= TODAY) &&
     (!n.end_date   || n.end_date   >= TODAY)
@@ -1027,14 +1123,34 @@ function renderNotices() {
 }
 
 // 공지 추가 (Supabase)
-async function addNotice(text) {
+async function addNotice(text, startDate, endDate) {
   if (!text.trim()) return;
-  await fetch(`${SB_URL}/rest/v1/notices`, {
+  const body = { text:text.trim() };
+  if (startDate) body.start_date = startDate;
+  if (endDate) body.end_date = endDate;
+  const r = await fetch(`${SB_URL}/rest/v1/notices`, {
     method:'POST',
     headers:{ ...H, 'Prefer':'return=minimal' },
-    body:JSON.stringify({ text:text.trim() }),
+    body:JSON.stringify(body),
     signal:sbSignal()
   });
+  if (!r.ok) throw new Error(r.status);
+  await loadNotices();
+  renderNotices();
+}
+
+// 공지 수정
+async function updateNotice(id, text, startDate, endDate) {
+  const body = { text:text.trim() };
+  body.start_date = startDate || null;
+  body.end_date = endDate || null;
+  const r = await fetch(`${SB_URL}/rest/v1/notices?id=eq.${id}`, {
+    method:'PATCH',
+    headers:{ ...H, 'Prefer':'return=minimal' },
+    body:JSON.stringify(body),
+    signal:sbSignal()
+  });
+  if (!r.ok) throw new Error(r.status);
   await loadNotices();
   renderNotices();
 }
@@ -1052,34 +1168,56 @@ async function deleteNotice(id) {
 }
 
 // 공지 관리 모달
+let _editNoticeId = null;
 function openNoticeModal() {
   const existing = document.getElementById('notice-modal');
   if (existing) { existing.remove(); return; }
+  _editNoticeId = null;
   const modal = document.createElement('div');
   modal.id = 'notice-modal';
   modal.innerHTML = `
     <div id="nm-backdrop"></div>
     <div id="nm-card">
       <div id="nm-header">
-        <span id="nm-title">📢 공지사항 관리</span>
+        <span id="nm-title">공지사항 관리</span>
         <button id="nm-close">✕</button>
       </div>
       <div id="nm-list"></div>
-      <div id="nm-add-row">
+      <div id="nm-add-form">
         <input type="text" id="nm-input" placeholder="공지 내용 입력..." maxlength="80">
+        <div id="nm-date-row">
+          <input type="date" id="nm-start" title="시작일">
+          <span>~</span>
+          <input type="date" id="nm-end" title="종료일">
+        </div>
         <button id="nm-add-btn">추가</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
   renderNoticeModal();
-  document.getElementById('nm-backdrop').onclick = () => modal.remove();
-  document.getElementById('nm-close').onclick    = () => modal.remove();
+  const closeModal = () => { _editNoticeId = null; modal.remove(); };
+  document.getElementById('nm-backdrop').onclick = closeModal;
+  document.getElementById('nm-close').onclick    = closeModal;
   document.getElementById('nm-add-btn').onclick  = async () => {
     const inp = document.getElementById('nm-input');
     if (!inp.value.trim()) return;
+    const sd = document.getElementById('nm-start').value || null;
+    const ed = document.getElementById('nm-end').value || null;
     spinner(true);
-    try { await addNotice(inp.value); inp.value = ''; renderNoticeModal(); }
-    catch(e) { toast('공지 추가 실패'); }
+    try {
+      if (_editNoticeId) {
+        await updateNotice(_editNoticeId, inp.value, sd, ed);
+        _editNoticeId = null;
+      } else {
+        await addNotice(inp.value, sd, ed);
+      }
+      inp.value = '';
+      document.getElementById('nm-start').value = '';
+      document.getElementById('nm-end').value = '';
+      document.getElementById('nm-add-btn').textContent = '추가';
+      renderNoticeModal();
+    }
+    catch(e) { toast('공지 저장 실패'); }
     finally { spinner(false); }
   };
   document.getElementById('nm-input').addEventListener('keydown', e => {
@@ -1090,21 +1228,40 @@ function openNoticeModal() {
 function renderNoticeModal() {
   const list = document.getElementById('nm-list');
   if (!list) return;
-  if (!_notices.length) {
+  if (!_allNotices.length) {
     list.innerHTML = '<div class="nm-empty">등록된 공지사항이 없습니다.</div>';
     return;
   }
-  list.innerHTML = _notices.map(n => `
-    <div class="nm-item">
-      <span class="nm-text">${escH(n.text)}</span>
+  list.innerHTML = _allNotices.map(n => {
+    const dateInfo = (n.start_date || n.end_date)
+      ? `<div class="nm-dates">${n.start_date || ''} ~ ${n.end_date || ''}</div>` : '';
+    return `<div class="nm-item">
+      <div class="nm-item-wrap">
+        <span class="nm-text">${escH(n.text)}</span>
+        ${dateInfo}
+      </div>
+      <button class="nm-edit" data-id="${n.id}" title="수정">✎</button>
       <button class="nm-del" data-id="${n.id}">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   list.querySelectorAll('.nm-del').forEach(btn => {
     btn.onclick = async () => {
       spinner(true);
       try { await deleteNotice(+btn.dataset.id); renderNoticeModal(); }
       catch(e) { toast('공지 삭제 실패'); }
       finally { spinner(false); }
+    };
+  });
+  list.querySelectorAll('.nm-edit').forEach(btn => {
+    btn.onclick = () => {
+      const n = _allNotices.find(x => x.id === +btn.dataset.id);
+      if (!n) return;
+      _editNoticeId = n.id;
+      document.getElementById('nm-input').value = n.text;
+      document.getElementById('nm-start').value = n.start_date || '';
+      document.getElementById('nm-end').value = n.end_date || '';
+      document.getElementById('nm-add-btn').textContent = '수정';
+      document.getElementById('nm-input').focus();
     };
   });
 }
@@ -1273,6 +1430,16 @@ function buildAddForm() {
     f += `<select id="add-input">${staffOpts(_curDate)}</select>`;
   }
 
+  // 기간 입력 옵션
+  f += `<div class="add-range-row">
+    <label><input type="checkbox" id="add-range-chk"> 기간 입력</label>
+  </div>
+  <div class="add-range-dates" id="add-range-dates">
+    <input type="date" id="add-range-start" value="${_curDate}">
+    <span class="add-range-sep">~</span>
+    <input type="date" id="add-range-end" value="${_curDate}">
+  </div>`;
+
   f += `<div class="add-actions">
     <button class="btn btn-secondary" id="add-cancel">취소</button>
     <button class="btn btn-primary"   id="add-save">저장</button>
@@ -1303,6 +1470,19 @@ function bindAddForm() {
     tab.addEventListener('click', () => { _addType = tab.dataset.type; rebuildSheet(); });
   });
   document.getElementById('add-save')?.addEventListener('click', onSaveMemo);
+  // 기간 입력 토글
+  document.getElementById('add-range-chk')?.addEventListener('change', e => {
+    const dates = document.getElementById('add-range-dates');
+    if (dates) dates.classList.toggle('active', e.target.checked);
+  });
+  // 대휴 자동 이름 채움 (마지막 대체 직원)
+  if (_addType === '대휴' && _lastSubName) {
+    const sel = document.getElementById('add-input');
+    if (sel) {
+      const opt = [...sel.options].find(o => o.value === _lastSubName);
+      if (opt) sel.value = _lastSubName;
+    }
+  }
   const inp = document.getElementById('add-input');
   if (inp) setTimeout(() => inp.focus(), 60);
 }
@@ -1331,22 +1511,86 @@ async function onSaveMemo() {
 
   const btn = document.getElementById('add-save');
   btn.disabled = true;
+  spinner(true);
   try {
-    const existing  = _monthData[_curDate];
-    const existMemo = existing?.memo || [];
-    if (existMemo.includes(line)) {
-      toast('이미 동일한 내용이 있습니다'); btn.disabled = false; return;
+    // 기간 입력 체크
+    const rangeChk = document.getElementById('add-range-chk');
+    const targetDates = (rangeChk?.checked)
+      ? getDateRange(
+          document.getElementById('add-range-start').value,
+          document.getElementById('add-range-end').value)
+      : [_curDate];
+
+    // 기간 입력 시 범위 내 기존 데이터 일괄 조회
+    let rangeDataMap = {};
+    if (targetDates.length > 1) {
+      const minD = targetDates[0], maxD = targetDates[targetDates.length - 1];
+      const rangeRows = await sbGet('shift_data',
+        `date=gte.${minD}&date=lte.${maxD}&select=date,shift,memo`);
+      rangeRows.forEach(r => { rangeDataMap[r.date] = r; });
     }
-    const newMemo = [...existMemo, line];
-    await writeMemo(_curDate, newMemo, existing);
-    updateLocalCache(_curDate, newMemo);
+
+    let savedCount = 0;
+    const autoSub = _addType === '연차' && val && isShiftWorker(val, _curDate);
+    for (const dateStr of targetDates) {
+      if (isPastMonth(dateStr)) continue;
+      const existing = targetDates.length > 1
+        ? (rangeDataMap[dateStr] || null)
+        : (_monthData[dateStr] || null);
+      const existMemo = existing?.memo || [];
+      if (existMemo.includes(line)) continue;
+
+      const newMemo = [...existMemo, line];
+
+      // 연차+대체 자동 추가: 교대근무자 연차 시 대체 자동 생성
+      if (autoSub) {
+        const subLine = `대체:${val}`;
+        if (!newMemo.includes(subLine)) newMemo.push(subLine);
+      }
+
+      await writeMemo(dateStr, newMemo, existing);
+      updateLocalCache(dateStr, newMemo);
+      savedCount++;
+    }
+
+    // 대체 이름 기억 (대휴 자동 연동용)
+    if (_addType === '대체') _lastSubName = val;
+
+    // 대휴 크로스 저장: 미래 날짜에도 자동 기록
+    if (_addType === '대휴' && val) {
+      const refDate = document.getElementById('add-ref')?.value;
+      if (refDate && refDate > _curDate) {
+        try {
+          let futureRow = _monthData[refDate];
+          if (!futureRow) {
+            const rows = await sbGet('shift_data', `date=eq.${refDate}&select=date,shift,memo`);
+            futureRow = rows[0] || null;
+          }
+          const futureMemo = futureRow?.memo || [];
+          const crossLine = `대휴:${val}(${_curDate})`;
+          if (!futureMemo.includes(crossLine)) {
+            const newFutureMemo = [...futureMemo, crossLine];
+            await writeMemo(refDate, newFutureMemo, futureRow);
+            if (_monthData[refDate]) updateLocalCache(refDate, newFutureMemo);
+          }
+        } catch(e) { /* 크로스 저장 실패 무시 */ }
+      }
+    }
+
     _addOpen = false;
     rebuildSheet();
     renderCalendar();
-    toast('저장했습니다');
+    const subMsg = autoSub ? ' (대체 자동 추가)' : '';
+    if (targetDates.length > 1) {
+      toast(`${savedCount}일에 저장 완료${subMsg}`);
+    } else {
+      toast(`저장했습니다${subMsg}`);
+    }
   } catch(e) {
     toast('저장 실패: ' + e.message);
     btn.disabled = false;
+  } finally {
+    spinner(false);
   }
 }
 
@@ -1491,11 +1735,13 @@ async function onShiftChange(newShift) {
   } catch(e) { toast('저장 실패: ' + e.message); }
 }
 
-/* ── JSON 다운로드 ────────────────────────────────────────── */
+/* ── JSON 다운로드 (현재 달~미래만 반출) ───────────────────── */
 async function downloadJson() {
   spinner(true);
   try {
-    const rows = await sbGet('shift_data', 'select=date,shift,memo,repeat_type&order=date');
+    const cutoff = thisMonthFirst();
+    const rows = await sbGet('shift_data',
+      `date=gte.${cutoff}&select=date,shift,memo,repeat_type&order=date`);
     const out = {};
     rows.forEach(r => {
       if (r.shift || (r.memo && r.memo.length) || r.repeat_type) {
@@ -1505,18 +1751,19 @@ async function downloadJson() {
         if (r.repeat_type) out[r.date].repeat = r.repeat_type;
       }
     });
+    const count = Object.keys(out).length;
     const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `shiftcal_${new Date().toISOString().slice(0,10)}.json`;
+    a.download = `shiftcal_${new Date().toISOString().slice(0,10)}.txt`;
     a.click();
     URL.revokeObjectURL(a.href);
-    toast('JSON 다운로드 완료');
+    toast(`내보내기 완료: ${cutoff} ~ 미래 ${count}건`);
   } catch(e) { toast('다운로드 실패: ' + e.message); }
   finally { spinner(false); }
 }
 
-/* ── 백업 복구 (현재 달부터 미래만, 중복 제거 병합) ─────── */
+/* ── 백업 복구 (현재 달~미래: 기존 삭제 → 새 데이터 삽입, 실패 시 롤백) ── */
 async function uploadJson(file) {
   if (!file) return;
   const cutoff = thisMonthFirst(); // 이번 달 1일
@@ -1525,87 +1772,139 @@ async function uploadJson(file) {
   try {
     const text = await file.text();
     const data = JSON.parse(text);
-    // shiftCalendar_data.json 형식: { "YYYY-MM-DD": { shift, memo, repeat } }
-    const entries = data.cal || data;
-    const fileDates = Object.keys(entries).filter(d =>
-      /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= cutoff
-    );
-    const skippedCount = Object.keys(entries).filter(d =>
-      /^\d{4}-\d{2}-\d{2}$/.test(d) && d < cutoff
-    ).length;
 
-    if (!fileDates.length) {
+    // ── 형식 감지 ──
+    let dateEntries = {};
+    let staffSync = false, noticeSync = false, carrySync = false;
+
+    if (data.staff && typeof data.staff === 'object' && !Array.isArray(data.staff)) {
+      dateEntries = data.staff;
+      staffSync = true;
+      if (data.noticeData) noticeSync = true;
+      if (data.carryOver) carrySync = true;
+    } else if (data.cal) {
+      dateEntries = data.cal;
+    } else {
+      dateEntries = data;
+    }
+
+    // ── 날짜 분류 ──
+    const allDates = Object.keys(dateEntries).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    const fileDates = allDates.filter(d => d >= cutoff);
+    const skippedCount = allDates.length - fileDates.length;
+
+    if (!fileDates.length && !noticeSync && !carrySync) {
       toast('현재 달 이후 복구할 데이터가 없습니다');
       return;
     }
 
-    // DB에서 현재 달 이후 기존 데이터 조회 (중복 제거 병합용)
-    const existingRows = await sbGet('shift_data',
-      `date=gte.${cutoff}&select=date,shift,memo,repeat_type`);
-    const existMap = {};
-    existingRows.forEach(r => { existMap[r.date] = r; });
+    // ── Step 1: 기존 데이터 백업 (롤백용) ──
+    const backup = await sbGet('shift_data',
+      `date=gte.${cutoff}&select=date,shift,memo,repeat_type,source,updated_at`);
 
-    const upsertRows = [];
-    let mergedCount = 0;
-    const now = new Date().toISOString();
-
-    for (const date of fileDates) {
-      const val = entries[date];
-      const fileMemo = Array.isArray(val.memo) ? val.memo : [];
-      const fileShift = val.shift || null;
-      const fileRepeat = val.repeat || null;
-      const existing = existMap[date];
-
-      if (existing) {
-        // 기존 메모와 병합, 중복 제거
-        const existMemo = existing.memo || [];
-        const merged = [...existMemo];
-        let added = false;
-        for (const m of fileMemo) {
-          if (!merged.includes(m)) { merged.push(m); added = true; }
-        }
-        // shift는 파일 값이 있으면 덮어쓰기, 없으면 기존 유지
-        const finalShift = fileShift || existing.shift;
-        const finalRepeat = fileRepeat || existing.repeat_type;
-        if (added || (fileShift && fileShift !== existing.shift)) {
-          upsertRows.push({
-            date, shift: finalShift, memo: merged,
-            repeat_type: finalRepeat, source: 'restore', updated_at: now
-          });
-          mergedCount++;
-        }
-      } else {
-        // 새 항목
-        upsertRows.push({
-          date, shift: fileShift, memo: fileMemo,
-          repeat_type: fileRepeat, source: 'restore', updated_at: now
-        });
+    let upsertCount = 0;
+    try {
+      // ── Step 2: 현재 달~미래 기존 데이터 전부 삭제 ──
+      if (backup.length) {
+        await sbDelete('shift_data', `date=gte.${cutoff}`);
       }
-    }
 
-    if (!upsertRows.length) {
-      toast('모든 데이터가 이미 최신 상태입니다');
+      // ── Step 3: 새 데이터 삽입 ──
+      const insertRows = [];
+      const now = new Date().toISOString();
+
+      for (const date of fileDates) {
+        const val = dateEntries[date];
+        const fileMemo = Array.isArray(val.memo) ? val.memo : [];
+        const fileShift = val.shift || null;
+        const fileRepeat = val.repeat || val.repeat_type || null;
+        if (fileMemo.length || fileShift) {
+          // 메모 중복 제거
+          const uniqueMemo = [...new Set(fileMemo)];
+          insertRows.push({
+            date, shift: fileShift, memo: uniqueMemo,
+            repeat_type: fileRepeat, source: 'restore', updated_at: now
+          });
+        }
+      }
+
+      // 100건씩 INSERT
+      for (let i = 0; i < insertRows.length; i += 100) {
+        await sbPost('shift_data', insertRows.slice(i, i + 100),
+          'resolution=merge-duplicates,return=minimal');
+      }
+      upsertCount = insertRows.length;
+
+    } catch (restoreErr) {
+      // ── 롤백: 백업 데이터 복원 ──
+      toast('복구 중 오류 발생, 롤백 중...');
+      try {
+        // 실패한 데이터 정리
+        await sbDelete('shift_data', `date=gte.${cutoff}`);
+        // 백업 데이터 복원
+        if (backup.length) {
+          for (let i = 0; i < backup.length; i += 100) {
+            await sbPost('shift_data', backup.slice(i, i + 100),
+              'resolution=merge-duplicates,return=minimal');
+          }
+        }
+        toast('롤백 완료 — 기존 데이터가 복원되었습니다');
+      } catch (rollbackErr) {
+        toast('롤백 실패! 내보내기 파일로 수동 복구 필요');
+      }
+      // 롤백 후 화면 갱신
+      await Promise.all([loadMonth(curY, curM), loadYearData(curY)]);
+      renderCalendar();
       return;
     }
 
-    // 100건씩 UPSERT
-    for (let i = 0; i < upsertRows.length; i += 100) {
-      await sbPost('shift_data', upsertRows.slice(i, i + 100),
-        'resolution=merge-duplicates,return=minimal');
+    // ── 공지 → Supabase notices 동기화 ──
+    let noticeCount = 0;
+    if (noticeSync && data.noticeData?.notices) {
+      const existing = await sbGet('notices', 'deleted_at=is.null&select=text');
+      const existTexts = new Set(existing.map(n => n.text));
+      for (const n of data.noticeData.notices) {
+        if (n.text && !existTexts.has(n.text)) {
+          await sbPost('notices', {
+            text: n.text,
+            start_date: n.start || null,
+            end_date: n.end || null
+          }, 'return=minimal');
+          noticeCount++;
+        }
+      }
     }
 
-    await Promise.all([loadMonth(curY, curM), loadYearData(curY), loadCarry(curY)]);
+    // ── 이월시간 → Supabase carry_over 동기화 ──
+    let carryCount = 0;
+    if (carrySync && data.carryOver) {
+      const year = new Date().getFullYear();
+      for (const [name, hours] of Object.entries(data.carryOver)) {
+        if (typeof hours === 'number') {
+          await sbPost('carry_over',
+            { year, name, hours },
+            'resolution=merge-duplicates,return=minimal');
+          carryCount++;
+        }
+      }
+    }
+
+    await Promise.all([loadMonth(curY, curM), loadYearData(curY), loadCarry(curY), loadNotices()]);
     renderCalendar();
 
-    // 결과 안내
-    let msg = `복구 완료: ${upsertRows.length}건 반영`;
-    if (mergedCount) msg += ` (${mergedCount}건 병합)`;
-    toast(msg);
+    // ── 결과 안내 ──
+    const range = `${cutoff} ~ 미래`;
+    const parts = [];
+    if (backup.length) parts.push(`기존 ${backup.length}건 삭제`);
+    if (upsertCount) parts.push(`신규 ${upsertCount}건 반영`);
+    if (noticeCount) parts.push(`공지 ${noticeCount}건`);
+    if (carryCount) parts.push(`이월 ${carryCount}건`);
+    toast(`복구 완료 (${range}): ${parts.join(', ')}`);
     if (skippedCount) {
       setTimeout(() => toast(`※ 지난 달 일정 ${skippedCount}건은 동기화 제외`), 3000);
     }
 
-    // shiftCalendar_data.json 동기화용 내보내기 제안
+    // 동기화 파일 내보내기
     syncExportJson();
 
   } catch(e) { toast('복구 실패: ' + e.message); }
@@ -1628,7 +1927,7 @@ async function syncExportJson() {
     const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `shiftCalendar_data.json`;
+    a.download = `shiftCalendar_data.txt`;
     a.click();
     URL.revokeObjectURL(a.href);
     toast('동기화 파일(shiftCalendar_data.json) 저장됨');
