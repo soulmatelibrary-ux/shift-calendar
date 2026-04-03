@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>교대근무 일정표</title>
 
+  <!-- Security -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://zonighcdnzdmsleltdmr.supabase.co; img-src 'self' data:">
+
   <!-- PWA / iPhone 홈화면 -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1829,6 +1832,7 @@ async function onSaveMemo() {
   if (!inp) return;
   const val = inp.value.trim();
   if (!val) { toast('내용을 입력하세요'); return; }
+  if (val.length > 200) { toast('200자를 초과할 수 없습니다'); return; }
 
   let line;
   if (_addType === '메모') {
@@ -2040,6 +2044,7 @@ async function execDelMemo(idx, mode, futureDates) {
 
 // shift 값 보존, source='mobile' 으로 저장
 async function writeMemo(dateStr, newMemo, existingRow) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new Error('잘못된 날짜 형식');
   const now = new Date().toISOString();
   if (existingRow) {
     await sbPatch('shift_data', `date=eq.${dateStr}`, {
@@ -2056,6 +2061,7 @@ async function onShiftChange(newShift) {
   if (isPastMonth(_curDate)) { toast('지난 달은 수정할 수 없습니다'); return; }
   if (!newShift) return;
   newShift = newShift.toUpperCase();
+  if (!/^[A-Z]{1,4}$/.test(newShift)) { toast('교대조는 영문 1~4자만 가능합니다'); return; }
   const now = new Date().toISOString();
   try {
     const existing = _monthData[_curDate];
