@@ -256,6 +256,28 @@ body.dark .doh-zero{background:var(--g2);color:var(--g5);}
   white-space:nowrap;
 }
 
+/* 삭제 확인 모달 */
+#del-modal{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;}
+#del-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45);}
+#del-card{
+  position:relative;width:min(320px,88vw);background:var(--bg-panel);
+  border-radius:var(--r);box-shadow:var(--sh);padding:24px 20px 16px;
+  text-align:center;z-index:1;
+}
+#del-card .del-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;}
+#del-card .del-desc{font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.5;}
+#del-card .del-btns{display:flex;flex-direction:column;gap:8px;}
+#del-card .del-btn{
+  padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:600;
+  cursor:pointer;transition:background .15s;
+}
+#del-card .del-btn.only{background:var(--pri);color:#fff;}
+#del-card .del-btn.only:active{background:#1d4ed8;}
+#del-card .del-btn.all{background:var(--red);color:#fff;}
+#del-card .del-btn.all:active{background:#b91c1c;}
+#del-card .del-btn.cancel{background:var(--g2);color:var(--text-muted);}
+#del-card .del-btn.cancel:active{background:var(--g3);}
+
 /* Day-of-week row */
 .cal-dow{
   display:grid;grid-template-columns:repeat(7,1fr);
@@ -1332,16 +1354,104 @@ async function onDelMemo(idx) {
   if (isPastMonth(_curDate)) { toast('지난 달 일정은 수정할 수 없습니다'); return; }
   const row = _monthData[_curDate];
   if (!row?.memo) return;
-  if (!confirm('이 항목을 삭제하시겠습니까?')) return;
-  const newMemo = row.memo.filter((_, i) => i !== idx);
+  const line = row.memo[idx];
+
+  // 같은 메모가 오늘 이후 다른 날짜에도 있는지 DB에서 확인
+  spinner(true);
+  let futureDates = [];
   try {
+    const futureRows = await sbGet('shift_data',
+      `date=gt.${_curDate}&memo=cs.{${encodeURIComponent('"' + line + '"')}}&select=date&order=date`);
+    futureDates = futureRows.map(r => r.date);
+  } catch(e) {
+    // 쿼리 실패 시 로컬 데이터로 폴백
+    futureDates = Object.keys(_monthData).filter(d =>
+      d > _curDate && _monthData[d]?.memo?.includes(line)
+    );
+  } finally {
+    spinner(false);
+  }
+
+  if (futureDates.length > 0) {
+    showDelModal(line, idx, futureDates);
+  } else {
+    if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+    await execDelMemo(idx, 'only');
+  }
+}
+
+function showDelModal(line, idx, futureDates) {
+  const old = document.getElementById('del-modal');
+  if (old) old.remove();
+
+  const displayLine = fmtLine(line);
+  const cnt = futureDates.length;
+  const modal = document.createElement('div');
+  modal.id = 'del-modal';
+  modal.innerHTML = `
+    <div id="del-backdrop"></div>
+    <div id="del-card">
+      <div class="del-title">반복 일정 삭제</div>
+      <div class="del-desc">
+        "${escH(displayLine)}"<br>
+        이 날 이후 <strong>${cnt}개</strong>의 같은 일정이 있습니다.
+      </div>
+      <div class="del-btns">
+        <button class="del-btn only">이 날만 삭제</button>
+        <button class="del-btn all">오늘부터 모두 삭제 (${cnt + 1}개)</button>
+        <button class="del-btn cancel">취소</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  modal.querySelector('#del-backdrop').onclick = close;
+  modal.querySelector('.del-btn.cancel').onclick = close;
+  modal.querySelector('.del-btn.only').onclick = async () => {
+    close();
+    await execDelMemo(idx, 'only');
+  };
+  modal.querySelector('.del-btn.all').onclick = async () => {
+    close();
+    await execDelMemo(idx, 'all', futureDates);
+  };
+}
+
+async function execDelMemo(idx, mode, futureDates) {
+  const row = _monthData[_curDate];
+  if (!row?.memo) return;
+  const line = row.memo[idx];
+  const newMemo = row.memo.filter((_, i) => i !== idx);
+  spinner(true);
+  try {
+    // 현재 날짜 삭제
     await writeMemo(_curDate, newMemo, row);
     updateLocalCache(_curDate, newMemo);
+
+    // 미래 날짜도 삭제
+    if (mode === 'all' && futureDates?.length) {
+      for (const d of futureDates) {
+        let r = _monthData[d];
+        if (!r) {
+          // 현재 그리드 밖의 날짜 → DB에서 조회
+          const rows = await sbGet('shift_data', `date=eq.${d}&select=date,shift,memo`);
+          r = rows[0];
+        }
+        if (!r?.memo) continue;
+        const updated = r.memo.filter(m => m !== line);
+        await writeMemo(d, updated, r);
+        if (_monthData[d]) updateLocalCache(d, updated);
+      }
+      toast(`${futureDates.length + 1}개 삭제했습니다`);
+    } else {
+      toast('삭제했습니다');
+    }
     rebuildSheet();
     renderCalendar();
-    toast('삭제했습니다');
   } catch(e) {
     toast('삭제 실패: ' + e.message);
+  } finally {
+    spinner(false);
   }
 }
 
