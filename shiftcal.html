@@ -375,11 +375,19 @@ body.dark .doh-zero{background:var(--g2);color:var(--g5);}
 .shift-BC{background:#bfdbfe;color:#1d4ed8;border-color:#3b82f6;}
 .shift-CD{background:#fecaca;color:#b91c1c;border-color:#ef4444;}
 .shift-DA{background:#fed7aa;color:#c2410c;border-color:#f97316;}
+/* 비정규 교대조 (AB/BC/CD/DA 외) */
+.shift-other{background:#f3e8ff;color:#7c3aed;border-color:#a78bfa;}
+/* 24시간 근무 (AA/BB/CC/DD) */
+.shift-24h{background:#fef08a;color:#a16207;border-color:#eab308;}
+.cal-day.is-24h{background:#fefce8!important;}
 /* 교대조 뱃지 — 다크 */
 body.dark .shift-AB{background:#0a1f12;color:#86efac;border-color:#1a5a30;}
 body.dark .shift-BC{background:#0d1e30;color:#93c5fd;border-color:#2a5a8a;}
 body.dark .shift-CD{background:#1e0808;color:#fca5a5;border-color:#7a1818;}
 body.dark .shift-DA{background:#1e0e06;color:#fdba74;border-color:#7a3010;}
+body.dark .shift-other{background:#1a0a2e;color:#c4b5fd;border-color:#5b21b6;}
+body.dark .shift-24h{background:#1a1a00;color:#fde047;border-color:#a16207;}
+body.dark .cal-day.is-24h{background:#1a1a00!important;}
 
 .hol-name{
   width:100%;font-size:8px;font-weight:600;color:var(--holiday-text);
@@ -1124,8 +1132,12 @@ function makeCell(dt, other) {
   top.appendChild(num);
 
   // 다른 달 포함 모든 날짜에 교대뱃지 표시
+  const NORMAL_SHIFTS = ['AB','BC','CD','DA'];
+  const is24h = shift.length === 2 && shift[0] === shift[1] && /^[A-D]$/.test(shift[0]);
+  const shiftCls = is24h ? 'shift-24h' : (NORMAL_SHIFTS.includes(shift) ? `shift-${shift}` : 'shift-other');
+  if (is24h) cell.classList.add('is-24h');
   const badge       = document.createElement('div');
-  badge.className   = `shift-badge shift-${shift}`;
+  badge.className   = `shift-badge ${shiftCls}`;
   badge.textContent = shift;
   top.appendChild(badge);
   cell.appendChild(top);
