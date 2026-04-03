@@ -555,28 +555,24 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
   position:fixed;left:0;right:0;bottom:0;
   background:var(--bg-header);border-top:1px solid var(--border);
   padding:10px 12px;padding-bottom:calc(14px + var(--safe-b));
-  display:flex;align-items:center;gap:7px;z-index:50;
+  display:flex;align-items:center;justify-content:center;gap:6px;z-index:50;
   max-width:800px;margin:0 auto;
-  /* full-width fix for fixed elements with max-width */
   left:50%;transform:translateX(-50%);width:100%;max-width:800px;
 }
 .bb-btn{
-  height:40px;border:none;background:var(--g2);border-radius:8px;
-  font-size:14px;font-weight:600;cursor:pointer;
+  flex:1;height:40px;border:none;background:var(--g2);border-radius:8px;
+  font-size:13px;font-weight:600;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  color:var(--text);flex-shrink:0;
+  color:var(--text);
   -webkit-tap-highlight-color:transparent;transition:background .1s;
-  white-space:nowrap;min-width:88px;
+  white-space:nowrap;
 }
 .bb-btn:active{background:var(--g3);}
-.bb-icon{width:88px;}          /* 아이콘 전용 */
-.bb-text{padding:0 14px;min-width:88px;} /* 텍스트 버튼 */
 /* select 스타일 override */
 .bb-select{
   -webkit-appearance:none;appearance:none;
-  text-align:center;font-weight:700;font-size:12px;
-  padding:0 4px;cursor:pointer;width:80px;min-width:80px;max-width:80px;
-  flex:0 0 80px;
+  text-align:center;font-weight:700;font-size:13px;
+  padding:0;cursor:pointer;
 }
 /* 달력 하단 여백 (bottom-bar 높이만큼) */
 #screen-calendar{padding-bottom:calc(70px + var(--safe-b))!important;}
