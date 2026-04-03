@@ -1665,40 +1665,73 @@ function bindAddForm() {
 }
 
 /* ── Memo CRUD ─────────────────────────────────────────────── */
+// 야간 근무 팀 판별 (해당 날짜의 shift 코드 2번째 문자)
+function getNightTeam(dateStr) {
+  const shift = calcShift(dateStr); // 예: 'AB' → B가 야간
+  return shift.length === 2 ? shift[1] : null;
+}
+
 // 연차+대체 원클릭
 async function onQuickLeave() {
   if (isPastMonth(_curDate)) { toast('지난 달 일정은 수정할 수 없습니다'); return; }
-  // 로그인 팀의 첫 번째 직원
-  let defaultName = '';
-  if (_filterTeam) {
-    const teamStaff = _staff.filter(s => s.shift === _filterTeam &&
-      (!s.from_date || s.from_date <= _curDate) &&
-      (!s.to_date || s.to_date >= _curDate));
-    if (teamStaff.length) defaultName = teamStaff[0].name;
+
+  const activeStaff = _staff.filter(s =>
+    (!s.from_date || s.from_date <= _curDate) &&
+    (!s.to_date || s.to_date >= _curDate));
+
+  // ── 연차 기본값: 주중이면 야간 근무팀의 첫 번째 직원, 주말이면 로그인 팀 ──
+  let leaveName = '';
+  const dt = new Date(_curDate + 'T00:00:00');
+  const dow = dt.getDay();
+  const isWeekend = (dow === 0 || dow === 6);
+
+  if (!isWeekend) {
+    // 주중: 야간 근무 팀 직원이 기본
+    const nightTeam = getNightTeam(_curDate);
+    if (nightTeam) {
+      const nightStaff = activeStaff.filter(s => s.shift === nightTeam);
+      if (nightStaff.length) leaveName = nightStaff[0].name;
+    }
   }
-  if (!defaultName) {
-    // 팀 없는 사용자는 수동 입력으로 전환
+  // 주말이거나 야간 직원을 못 찾으면 로그인 팀 첫 직원
+  if (!leaveName && _filterTeam) {
+    const teamStaff = activeStaff.filter(s => s.shift === _filterTeam);
+    if (teamStaff.length) leaveName = teamStaff[0].name;
+  }
+  if (!leaveName) {
     _addType = '연차'; _addOpen = true; rebuildSheet();
     toast('직원을 선택하세요'); return;
   }
+
+  // ── 대체 기본값: 현장일근 > 일근 > 사무실일근 순 (비교대 우선) ──
+  let subName = '';
+  const dayWorkers = activeStaff.filter(s => !/^[A-D]$/.test(s.shift));
+  // 현장일근 우선
+  const fieldWorker = dayWorkers.find(s => /현장/.test(s.shift || s.grade || ''));
+  subName = fieldWorker ? fieldWorker.name : (dayWorkers.length ? dayWorkers[0].name : '');
 
   spinner(true);
   try {
     const existing = _monthData[_curDate];
     const existMemo = existing?.memo || [];
     const newMemo = [...existMemo];
-    const leaveLine = `연차:${defaultName}`;
-    const subLine = `대체:${defaultName}`;
+
+    // 연차 추가
+    const leaveLine = `연차:${leaveName}`;
     if (!newMemo.includes(leaveLine)) newMemo.push(leaveLine);
-    if (isShiftWorker(defaultName, _curDate) && !newMemo.includes(subLine)) {
-      newMemo.push(subLine);
+
+    // 대체 추가 (대체 근무할 일근자)
+    if (subName) {
+      const subLine = `대체:${subName}`;
+      if (!newMemo.includes(subLine)) newMemo.push(subLine);
     }
-    // 대휴 (다음날 기본)
+
+    // 대휴 추가 (연차 당사자, 다음날 기본)
     const tomorrow = new Date(_curDate + 'T00:00:00');
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = fmtDate(tomorrow);
-    const dayOffLine = `대휴:${defaultName}(${shortDate(tomorrowStr)})`;
-    if (!newMemo.some(m => m.startsWith(`대휴:${defaultName}`))) {
+    const dayOffLine = `대휴:${leaveName}(${shortDate(tomorrowStr)})`;
+    if (!newMemo.some(m => m.startsWith(`대휴:${leaveName}`))) {
       newMemo.push(dayOffLine);
     }
 
@@ -1713,18 +1746,19 @@ async function onQuickLeave() {
         futureRow = rows[0] || null;
       }
       const futureMemo = futureRow?.memo || [];
-      const crossLine = `대휴:${defaultName}(${shortDate(_curDate)})`;
+      const crossLine = `대휴:${leaveName}(${shortDate(_curDate)})`;
       if (!futureMemo.includes(crossLine)) {
         await writeMemo(tomorrowStr, [...futureMemo, crossLine], futureRow);
         if (_monthData[tomorrowStr]) updateLocalCache(tomorrowStr, [...futureMemo, crossLine]);
       }
     } catch(e) { /* ignore */ }
 
-    _lastSubName = defaultName;
+    _lastSubName = leaveName;
     _addOpen = false;
     rebuildSheet();
     renderCalendar();
-    toast(`${defaultName}: 연차+대체+대휴 저장`);
+    const info = `연차:${leaveName}` + (subName ? ` 대체:${subName}` : '');
+    toast(`${info} 저장`);
   } catch(e) {
     toast('저장 실패: ' + e.message);
   } finally { spinner(false); }
