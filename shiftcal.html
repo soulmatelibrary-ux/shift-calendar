@@ -34,7 +34,7 @@
   --g4:#d1d5db;--g5:#9ca3af;--g6:#6b7280;--g7:#374151;--g8:#1f2937;--g9:#111827;
   --holiday-bg:#fff0ef;--holiday-text:#bf3f36;
   --weekend-bg:#f5f8ff;
-  --my-shift-bg:#e8f4f0;   /* 세련된 세이지 — 라이트 */
+  --my-shift-bg:#e8f0fb;   /* 소프트 블루 — 라이트 */
   --today-bg:#dbeafe;
   --ticker-bg:#f0f7ff;--ticker-border:#cce0ff;--ticker-text:#1e40af;
   --r:12px;--sh:0 4px 24px rgba(0,0,0,.12);
@@ -53,7 +53,7 @@ body.dark{
   --g4:#3a3a3a;--g5:#6b7280;--g6:#9ca3af;--g7:#d1d5db;--g8:#e8e8e8;--g9:#f3f4f6;
   --holiday-bg:#1e0a0a;--holiday-text:#ff6b6b;
   --weekend-bg:#0e0e16;
-  --my-shift-bg:#0d1f18;   /* 세련된 딥포레스트 — 다크 */
+  --my-shift-bg:#0d1828;   /* 딥 블루 — 다크 */
   --today-bg:#0f1f3a;
   --pri:#3b82f6;--pri-lt:#0f1f3a;
   --ticker-bg:#0d1520;--ticker-border:#1e3050;--ticker-text:#7eb8f5;
@@ -507,6 +507,18 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
 .add-range-row label{font-size:13px;font-weight:600;color:var(--g6);display:flex;align-items:center;gap:4px;cursor:pointer;}
 .add-range-dates{display:none;gap:6px;align-items:center;margin-top:4px;}
 .add-range-dates.active{display:flex;}
+.add-repeat-row{display:none;align-items:center;gap:6px;margin-top:4px;}
+.add-repeat-row.active{display:flex;}
+.add-repeat-row label{font-size:13px;font-weight:600;color:var(--g6);display:flex;align-items:center;gap:4px;cursor:pointer;}
+.add-repeat-sel{flex:1;padding:8px 10px;font-size:13px;border:1.5px solid var(--g3);border-radius:8px;background:var(--g0);color:var(--text);}
+.add-quick-btns{display:flex;gap:6px;margin-top:2px;}
+.add-quick-btn{
+  padding:7px 12px;border-radius:20px;border:1.5px solid var(--red);
+  background:transparent;font-size:12px;font-weight:600;color:var(--red);
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.add-quick-btn:active{background:var(--red);color:#fff;}
+.btn-clear{background:var(--g2);color:var(--red);border:none;font-weight:600;}
 .add-range-dates input[type="date"]{flex:1;padding:8px 10px;font-size:13px;}
 .add-range-sep{font-size:13px;color:var(--g5);}
 /* 공지 관리 확장 */
@@ -898,14 +910,19 @@ function isPastMonth(dateStr) {
   return dateStr < thisMonthFirst();
 }
 
-function getDateRange(start, end, maxDays = 90) {
+function getDateRange(start, end, repeat, maxDays = 90) {
   const result = [];
   const s = new Date(start + 'T00:00:00');
   const e = new Date(end + 'T00:00:00');
   if (s > e) return [start];
+  const startDow = s.getDay();
+  const startDate = s.getDate();
   const cur = new Date(s);
   while (cur <= e && result.length < maxDays) {
-    result.push(fmtDate(cur));
+    let match = true;
+    if (repeat === 'weekly') match = cur.getDay() === startDow;
+    else if (repeat === 'monthly') match = cur.getDate() === startDate;
+    if (match) result.push(fmtDate(cur));
     cur.setDate(cur.getDate() + 1);
   }
   return result;
@@ -1443,26 +1460,38 @@ function buildAddForm() {
     </div>`;
   }
   const types = ['메모','연차','대체','대휴','교육','출장','기타'];
+  // 로그인 팀의 첫 번째 직원 이름 (기본값)
+  const myTeamDefault = _filterTeam
+    ? (_staff.find(s => s.shift === _filterTeam &&
+        (!s.from_date || s.from_date <= _curDate) &&
+        (!s.to_date || s.to_date >= _curDate))?.name || '')
+    : '';
+
   let f = `<div class="add-card active" id="add-card">
     <div class="type-tabs">
       ${types.map(t =>
         `<button class="type-tab${_addType===t?' active':''}" data-type="${t}">${t}</button>`
       ).join('')}
+    </div>
+    <div class="add-quick-btns">
+      <button class="add-quick-btn" id="add-quick-leave">연차+대체</button>
     </div>`;
 
   if (_addType === '메모') {
     f += `<textarea id="add-input" placeholder="메모 내용 입력" rows="2"></textarea>`;
   } else if (_addType === '대휴') {
-    f += `<select id="add-input">${staffOpts(_curDate)}</select>
+    f += `<select id="add-input">${staffOpts(_curDate, { defaultName: _lastSubName })}</select>
           <input type="date" id="add-ref" placeholder="원 대체일 (선택)" style="margin-top:4px">`;
+  } else if (_addType === '대체') {
+    f += `<select id="add-input">${staffOpts(_curDate, { sortDayFirst: true })}</select>`;
   } else if (['교육','출장','기타'].includes(_addType)) {
     f += `<select id="add-input">${staffOpts(_curDate)}</select>
           <input type="text" id="add-ref" placeholder="${_addType}명/비고 (선택)" style="margin-top:4px">`;
   } else {
-    f += `<select id="add-input">${staffOpts(_curDate)}</select>`;
+    f += `<select id="add-input">${staffOpts(_curDate, { defaultName: myTeamDefault })}</select>`;
   }
 
-  // 기간 입력 옵션
+  // 기간 + 반복 옵션
   f += `<div class="add-range-row">
     <label><input type="checkbox" id="add-range-chk"> 기간 입력</label>
   </div>
@@ -1470,24 +1499,49 @@ function buildAddForm() {
     <input type="date" id="add-range-start" value="${_curDate}">
     <span class="add-range-sep">~</span>
     <input type="date" id="add-range-end" value="${_curDate}">
+  </div>
+  <div class="add-repeat-row" id="add-repeat-row">
+    <label><input type="checkbox" id="add-repeat-chk"> 반복</label>
+    <select class="add-repeat-sel" id="add-repeat-type">
+      <option value="daily">매일</option>
+      <option value="weekly">매주 (같은 요일)</option>
+      <option value="monthly">매월 (같은 날짜)</option>
+    </select>
   </div>`;
 
   f += `<div class="add-actions">
+    <button class="btn btn-clear" id="add-clear">초기화</button>
     <button class="btn btn-secondary" id="add-cancel">취소</button>
     <button class="btn btn-primary"   id="add-save">저장</button>
   </div></div>`;
   return f;
 }
 
-function staffOpts(dateStr) {
-  const active = _staff.filter(s =>
+function staffOpts(dateStr, opts = {}) {
+  let active = _staff.filter(s =>
     (!s.from_date || s.from_date <= dateStr) &&
     (!s.to_date   || s.to_date   >= dateStr)
   );
   if (!active.length) return '<option value="">— 직원 없음 —</option>';
+  if (opts.sortDayFirst) {
+    // 대체용: 일근자(비교대) 우선
+    active = [...active].sort((a,b) => {
+      const ao = /^[A-D]$/.test(a.shift) ? 1 : 0;
+      const bo = /^[A-D]$/.test(b.shift) ? 1 : 0;
+      return ao - bo;
+    });
+  } else if (_filterTeam) {
+    // 로그인 팀 우선 정렬
+    active = [...active].sort((a,b) => {
+      const ap = a.shift === _filterTeam ? 0 : 1;
+      const bp = b.shift === _filterTeam ? 0 : 1;
+      return ap - bp;
+    });
+  }
+  const defaultVal = opts.defaultName || '';
   return '<option value="">— 직원 선택 —</option>' +
     active.map(s =>
-      `<option value="${escA(s.name)}">${escH(s.name)} (${escH(s.shift)})</option>`
+      `<option value="${escA(s.name)}"${s.name === defaultVal ? ' selected' : ''}>${escH(s.name)} (${escH(s.shift)})</option>`
     ).join('');
 }
 
@@ -1502,24 +1556,139 @@ function bindAddForm() {
     tab.addEventListener('click', () => { _addType = tab.dataset.type; rebuildSheet(); });
   });
   document.getElementById('add-save')?.addEventListener('click', onSaveMemo);
-  // 기간 입력 토글
+  document.getElementById('add-clear')?.addEventListener('click', onClearMemo);
+  // 기간 입력 토글 → 반복 행 표시/숨김 연동
   document.getElementById('add-range-chk')?.addEventListener('change', e => {
     const dates = document.getElementById('add-range-dates');
+    const repeat = document.getElementById('add-repeat-row');
     if (dates) dates.classList.toggle('active', e.target.checked);
-  });
-  // 대휴 자동 이름 채움 (마지막 대체 직원)
-  if (_addType === '대휴' && _lastSubName) {
-    const sel = document.getElementById('add-input');
-    if (sel) {
-      const opt = [...sel.options].find(o => o.value === _lastSubName);
-      if (opt) sel.value = _lastSubName;
+    if (repeat) {
+      repeat.classList.toggle('active', e.target.checked);
+      if (!e.target.checked) {
+        const rchk = document.getElementById('add-repeat-chk');
+        if (rchk) rchk.checked = false;
+      }
     }
-  }
+  });
+  // 연차+대체 원클릭
+  document.getElementById('add-quick-leave')?.addEventListener('click', onQuickLeave);
   const inp = document.getElementById('add-input');
   if (inp) setTimeout(() => inp.focus(), 60);
 }
 
 /* ── Memo CRUD ─────────────────────────────────────────────── */
+// 연차+대체 원클릭
+async function onQuickLeave() {
+  if (isPastMonth(_curDate)) { toast('지난 달 일정은 수정할 수 없습니다'); return; }
+  // 로그인 팀의 첫 번째 직원
+  let defaultName = '';
+  if (_filterTeam) {
+    const teamStaff = _staff.filter(s => s.shift === _filterTeam &&
+      (!s.from_date || s.from_date <= _curDate) &&
+      (!s.to_date || s.to_date >= _curDate));
+    if (teamStaff.length) defaultName = teamStaff[0].name;
+  }
+  if (!defaultName) {
+    // 팀 없는 사용자는 수동 입력으로 전환
+    _addType = '연차'; _addOpen = true; rebuildSheet();
+    toast('직원을 선택하세요'); return;
+  }
+
+  spinner(true);
+  try {
+    const existing = _monthData[_curDate];
+    const existMemo = existing?.memo || [];
+    const newMemo = [...existMemo];
+    const leaveLine = `연차:${defaultName}`;
+    const subLine = `대체:${defaultName}`;
+    if (!newMemo.includes(leaveLine)) newMemo.push(leaveLine);
+    if (isShiftWorker(defaultName, _curDate) && !newMemo.includes(subLine)) {
+      newMemo.push(subLine);
+    }
+    // 대휴 (다음날 기본)
+    const tomorrow = new Date(_curDate + 'T00:00:00');
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = fmtDate(tomorrow);
+    const dayOffLine = `대휴:${defaultName}(${tomorrowStr})`;
+    if (!newMemo.some(m => m.startsWith(`대휴:${defaultName}`))) {
+      newMemo.push(dayOffLine);
+    }
+
+    await writeMemo(_curDate, newMemo, existing);
+    updateLocalCache(_curDate, newMemo);
+
+    // 대휴 크로스 저장 (다음날에)
+    try {
+      let futureRow = _monthData[tomorrowStr];
+      if (!futureRow) {
+        const rows = await sbGet('shift_data', `date=eq.${tomorrowStr}&select=date,shift,memo`);
+        futureRow = rows[0] || null;
+      }
+      const futureMemo = futureRow?.memo || [];
+      const crossLine = `대휴:${defaultName}(${_curDate})`;
+      if (!futureMemo.includes(crossLine)) {
+        await writeMemo(tomorrowStr, [...futureMemo, crossLine], futureRow);
+        if (_monthData[tomorrowStr]) updateLocalCache(tomorrowStr, [...futureMemo, crossLine]);
+      }
+    } catch(e) { /* ignore */ }
+
+    _lastSubName = defaultName;
+    _addOpen = false;
+    rebuildSheet();
+    renderCalendar();
+    toast(`${defaultName}: 연차+대체+대휴 저장`);
+  } catch(e) {
+    toast('저장 실패: ' + e.message);
+  } finally { spinner(false); }
+}
+
+// 기간/반복 범위 일괄 초기화 (메모 삭제, shift 유지)
+async function onClearMemo() {
+  if (isPastMonth(_curDate)) { toast('지난 달 일정은 수정할 수 없습니다'); return; }
+  const rangeChk = document.getElementById('add-range-chk');
+  const repeatChk = document.getElementById('add-repeat-chk');
+  const repeatType = (rangeChk?.checked && repeatChk?.checked)
+    ? document.getElementById('add-repeat-type').value : null;
+  const targetDates = (rangeChk?.checked)
+    ? getDateRange(
+        document.getElementById('add-range-start').value,
+        document.getElementById('add-range-end').value,
+        repeatType)
+    : [_curDate];
+
+  const msg = targetDates.length > 1
+    ? `${targetDates.length}일의 메모를 모두 삭제하시겠습니까?`
+    : '이 날의 메모를 모두 삭제하시겠습니까?';
+  if (!confirm(msg)) return;
+
+  spinner(true);
+  try {
+    // 범위 내 기존 데이터 조회
+    const minD = targetDates[0], maxD = targetDates[targetDates.length - 1];
+    const rangeRows = await sbGet('shift_data',
+      `date=gte.${minD}&date=lte.${maxD}&select=date,shift,memo`);
+    const dataMap = {};
+    rangeRows.forEach(r => { dataMap[r.date] = r; });
+
+    let cleared = 0;
+    for (const d of targetDates) {
+      const row = dataMap[d];
+      if (!row?.memo?.length) continue;
+      await sbPatch('shift_data', `date=eq.${d}`, {
+        memo: [], updated_at: new Date().toISOString()
+      });
+      updateLocalCache(d, []);
+      cleared++;
+    }
+
+    rebuildSheet();
+    renderCalendar();
+    toast(cleared > 0 ? `${cleared}일 메모 초기화 완료` : '삭제할 메모가 없습니다');
+  } catch(e) {
+    toast('초기화 실패: ' + e.message);
+  } finally { spinner(false); }
+}
+
 async function onSaveMemo() {
   if (isPastMonth(_curDate)) { toast('지난 달 일정은 수정할 수 없습니다'); return; }
 
@@ -1545,12 +1714,16 @@ async function onSaveMemo() {
   btn.disabled = true;
   spinner(true);
   try {
-    // 기간 입력 체크
+    // 기간 + 반복 입력 체크
     const rangeChk = document.getElementById('add-range-chk');
+    const repeatChk = document.getElementById('add-repeat-chk');
+    const repeatType = (rangeChk?.checked && repeatChk?.checked)
+      ? document.getElementById('add-repeat-type').value : null;
     const targetDates = (rangeChk?.checked)
       ? getDateRange(
           document.getElementById('add-range-start').value,
-          document.getElementById('add-range-end').value)
+          document.getElementById('add-range-end').value,
+          repeatType)
       : [_curDate];
 
     // 기간 입력 시 범위 내 기존 데이터 일괄 조회
