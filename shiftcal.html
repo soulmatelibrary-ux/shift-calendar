@@ -784,10 +784,10 @@ async function doLogin(id, pw) {
   const rows = await sbGet('app_config', 'key=eq.app_password&select=value');
   if (!rows.length) throw new Error('앱 설정을 찾을 수 없습니다');
   const stored = rows[0].value;
-  // 해시값(64자 hex)이면 해시 비교, 아니면 평문 비교 (마이그레이션 호환)
-  const isHashed = /^[a-f0-9]{64}$/.test(stored);
-  const match = isHashed ? (stored === await sha256(pw)) : (stored === pw);
-  if (!match) throw new Error('비밀번호가 올바르지 않습니다');
+  const pwHash = await sha256(pw);
+  // 양쪽 모두 해시 비교 (DB값이 해시가 아니면 DB값도 해시하여 비교)
+  const storedHash = /^[a-f0-9]{64}$/.test(stored) ? stored : await sha256(stored);
+  if (pwHash !== storedHash) throw new Error('비밀번호가 올바르지 않습니다');
 
   _authId = id.toLowerCase().trim();
   const storedId = _authId || 'all';
