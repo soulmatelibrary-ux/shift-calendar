@@ -566,17 +566,17 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
   display:flex;align-items:center;justify-content:center;
   color:var(--text);flex-shrink:0;
   -webkit-tap-highlight-color:transparent;transition:background .1s;
-  white-space:nowrap;
+  white-space:nowrap;min-width:44px;
 }
 .bb-btn:active{background:var(--g3);}
-.bb-icon{width:40px;}          /* 아이콘 전용 — 정사각형 */
-.bb-text{padding:0 14px;}      /* 텍스트 버튼 */
-.bb-spacer{flex:1;}            /* 오른쪽 정렬용 스페이서 */
+.bb-icon{width:44px;}          /* 아이콘 전용 */
+.bb-text{padding:0 14px;min-width:44px;} /* 텍스트 버튼 */
+.bb-spacer{flex:1;}            /* 정렬용 스페이서 */
 /* select 스타일 override */
 .bb-select{
   -webkit-appearance:none;appearance:none;
   text-align:center;font-weight:700;font-size:14px;
-  padding:0 10px;cursor:pointer;width:64px;
+  padding:0 10px;cursor:pointer;min-width:44px;
 }
 /* 달력 하단 여백 (bottom-bar 높이만큼) */
 #screen-calendar{padding-bottom:calc(70px + var(--safe-b))!important;}
