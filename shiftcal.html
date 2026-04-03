@@ -774,10 +774,20 @@ let _authId     = null; // 'a'~'d' or '' (교대 외)
 let _filterTeam = null; // 'A'|'B'|'C'|'D' or null (전체)
 let _showAll    = false; // 필터 해제 여부
 
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256',
+    new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
 async function doLogin(id, pw) {
   const rows = await sbGet('app_config', 'key=eq.app_password&select=value');
   if (!rows.length) throw new Error('앱 설정을 찾을 수 없습니다');
-  if (rows[0].value !== pw) throw new Error('비밀번호가 올바르지 않습니다');
+  const stored = rows[0].value;
+  // 해시값(64자 hex)이면 해시 비교, 아니면 평문 비교 (마이그레이션 호환)
+  const isHashed = /^[a-f0-9]{64}$/.test(stored);
+  const match = isHashed ? (stored === await sha256(pw)) : (stored === pw);
+  if (!match) throw new Error('비밀번호가 올바르지 않습니다');
 
   _authId = id.toLowerCase().trim();
   const storedId = _authId || 'all';
