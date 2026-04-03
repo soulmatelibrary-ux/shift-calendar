@@ -927,6 +927,14 @@ function fmtDate(d) {
 function isPastMonth(dateStr) {
   return dateStr < thisMonthFirst();
 }
+// YYYY-MM-DD → YY-MM-DD (대휴 표시용)
+function shortDate(s) { return s && s.length >= 10 ? s.slice(2) : s; }
+// YY-MM-DD → YYYY-MM-DD (복원용)
+function fullDate(s) {
+  if (!s) return s;
+  if (/^\d{2}-\d{2}-\d{2}$/.test(s)) return '20' + s;
+  return s;
+}
 
 function getDateRange(start, end, repeat, maxDays = 90) {
   const result = [];
@@ -1685,7 +1693,7 @@ async function onQuickLeave() {
     const tomorrow = new Date(_curDate + 'T00:00:00');
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = fmtDate(tomorrow);
-    const dayOffLine = `대휴:${defaultName}(${tomorrowStr})`;
+    const dayOffLine = `대휴:${defaultName}(${shortDate(tomorrowStr)})`;
     if (!newMemo.some(m => m.startsWith(`대휴:${defaultName}`))) {
       newMemo.push(dayOffLine);
     }
@@ -1701,7 +1709,7 @@ async function onQuickLeave() {
         futureRow = rows[0] || null;
       }
       const futureMemo = futureRow?.memo || [];
-      const crossLine = `대휴:${defaultName}(${_curDate})`;
+      const crossLine = `대휴:${defaultName}(${shortDate(_curDate)})`;
       if (!futureMemo.includes(crossLine)) {
         await writeMemo(tomorrowStr, [...futureMemo, crossLine], futureRow);
         if (_monthData[tomorrowStr]) updateLocalCache(tomorrowStr, [...futureMemo, crossLine]);
@@ -1779,7 +1787,7 @@ async function onSaveMemo() {
     line = val;
   } else if (_addType === '대휴') {
     const ref = document.getElementById('add-ref')?.value;
-    line = `대휴:${val}` + (ref ? `(${ref})` : '');
+    line = `대휴:${val}` + (ref ? `(${shortDate(ref)})` : '');
   } else if (['교육','출장','기타'].includes(_addType)) {
     const ref = document.getElementById('add-ref')?.value.trim();
     line = `${_addType}:${val}` + (ref ? `(${ref})` : '');
@@ -1850,7 +1858,7 @@ async function onSaveMemo() {
             futureRow = rows[0] || null;
           }
           const futureMemo = futureRow?.memo || [];
-          const crossLine = `대휴:${val}(${_curDate})`;
+          const crossLine = `대휴:${val}(${shortDate(_curDate)})`;
           if (!futureMemo.includes(crossLine)) {
             const newFutureMemo = [...futureMemo, crossLine];
             await writeMemo(refDate, newFutureMemo, futureRow);
