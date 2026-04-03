@@ -609,7 +609,7 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
     <div class="cal-month-label" id="month-label"></div>
     <button class="cal-nav-btn" id="btn-next" aria-label="다음 달">▶</button>
     <button class="cal-icon-btn" id="btn-dark">☀</button>
-    <button class="cal-icon-btn" id="btn-refresh" title="새로고침">↻</button>
+    <button class="cal-icon-btn" id="btn-logout" title="로그아웃">⏻</button>
   </div>
   <input type="file" id="json-file-input" accept=".json" style="display:none">
 
@@ -643,9 +643,9 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
     <option value="D">D조</option>
   </select>
   <div class="bb-spacer"></div>
+  <button class="bb-btn bb-icon" id="btn-refresh" title="새로고침">↻</button>
   <button class="bb-btn bb-text" id="btn-json-dl2">내보내기</button>
-  <button class="bb-btn bb-text" id="btn-json-ul2">가져오기</button>
-  <button class="bb-btn bb-icon" id="btn-logout" title="로그아웃">⏻</button>
+  <button class="bb-btn bb-text" id="btn-json-ul2">백업복구</button>
 </div>
 
 <div id="sheet-backdrop" hidden></div>
@@ -1516,38 +1516,123 @@ async function downloadJson() {
   finally { spinner(false); }
 }
 
-/* ── JSON 업로드 ─────────────────────────────────────────── */
+/* ── 백업 복구 (현재 달부터 미래만, 중복 제거 병합) ─────── */
 async function uploadJson(file) {
   if (!file) return;
+  const cutoff = thisMonthFirst(); // 이번 달 1일
+
   spinner(true);
   try {
     const text = await file.text();
     const data = JSON.parse(text);
     // shiftCalendar_data.json 형식: { "YYYY-MM-DD": { shift, memo, repeat } }
-    // 또는 중첩 형식 지원
-    const rows = [];
-    const entries = data.cal || data; // cal 키 없으면 최상위가 날짜 데이터
-    for (const [date, val] of Object.entries(entries)) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-      rows.push({
-        date,
-        shift:       val.shift || null,
-        memo:        Array.isArray(val.memo) ? val.memo : [],
-        repeat_type: val.repeat || null,
-        source:      'desktop',
-        updated_at:  new Date().toISOString()
-      });
+    const entries = data.cal || data;
+    const fileDates = Object.keys(entries).filter(d =>
+      /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= cutoff
+    );
+    const skippedCount = Object.keys(entries).filter(d =>
+      /^\d{4}-\d{2}-\d{2}$/.test(d) && d < cutoff
+    ).length;
+
+    if (!fileDates.length) {
+      toast('현재 달 이후 복구할 데이터가 없습니다');
+      return;
     }
-    if (!rows.length) { toast('날짜 데이터가 없습니다'); return; }
-    // 100건씩 나눠서 UPSERT
-    for (let i = 0; i < rows.length; i += 100) {
-      await sbPost('shift_data', rows.slice(i, i + 100), 'resolution=merge-duplicates,return=minimal');
+
+    // DB에서 현재 달 이후 기존 데이터 조회 (중복 제거 병합용)
+    const existingRows = await sbGet('shift_data',
+      `date=gte.${cutoff}&select=date,shift,memo,repeat_type`);
+    const existMap = {};
+    existingRows.forEach(r => { existMap[r.date] = r; });
+
+    const upsertRows = [];
+    let mergedCount = 0;
+    const now = new Date().toISOString();
+
+    for (const date of fileDates) {
+      const val = entries[date];
+      const fileMemo = Array.isArray(val.memo) ? val.memo : [];
+      const fileShift = val.shift || null;
+      const fileRepeat = val.repeat || null;
+      const existing = existMap[date];
+
+      if (existing) {
+        // 기존 메모와 병합, 중복 제거
+        const existMemo = existing.memo || [];
+        const merged = [...existMemo];
+        let added = false;
+        for (const m of fileMemo) {
+          if (!merged.includes(m)) { merged.push(m); added = true; }
+        }
+        // shift는 파일 값이 있으면 덮어쓰기, 없으면 기존 유지
+        const finalShift = fileShift || existing.shift;
+        const finalRepeat = fileRepeat || existing.repeat_type;
+        if (added || (fileShift && fileShift !== existing.shift)) {
+          upsertRows.push({
+            date, shift: finalShift, memo: merged,
+            repeat_type: finalRepeat, source: 'restore', updated_at: now
+          });
+          mergedCount++;
+        }
+      } else {
+        // 새 항목
+        upsertRows.push({
+          date, shift: fileShift, memo: fileMemo,
+          repeat_type: fileRepeat, source: 'restore', updated_at: now
+        });
+      }
     }
-    toast(`${rows.length}건 업로드 완료`);
+
+    if (!upsertRows.length) {
+      toast('모든 데이터가 이미 최신 상태입니다');
+      return;
+    }
+
+    // 100건씩 UPSERT
+    for (let i = 0; i < upsertRows.length; i += 100) {
+      await sbPost('shift_data', upsertRows.slice(i, i + 100),
+        'resolution=merge-duplicates,return=minimal');
+    }
+
     await Promise.all([loadMonth(curY, curM), loadYearData(curY), loadCarry(curY)]);
     renderCalendar();
-  } catch(e) { toast('업로드 실패: ' + e.message); }
+
+    // 결과 안내
+    let msg = `복구 완료: ${upsertRows.length}건 반영`;
+    if (mergedCount) msg += ` (${mergedCount}건 병합)`;
+    toast(msg);
+    if (skippedCount) {
+      setTimeout(() => toast(`※ 지난 달 일정 ${skippedCount}건은 동기화 제외`), 3000);
+    }
+
+    // shiftCalendar_data.json 동기화용 내보내기 제안
+    syncExportJson();
+
+  } catch(e) { toast('복구 실패: ' + e.message); }
   finally { spinner(false); }
+}
+
+/* ── 복구 후 shiftCalendar_data.json 동기화 내보내기 ────── */
+async function syncExportJson() {
+  try {
+    const rows = await sbGet('shift_data', 'select=date,shift,memo,repeat_type&order=date');
+    const out = {};
+    rows.forEach(r => {
+      if (r.shift || (r.memo && r.memo.length) || r.repeat_type) {
+        out[r.date] = {};
+        if (r.shift) out[r.date].shift = r.shift;
+        if (r.memo && r.memo.length) out[r.date].memo = r.memo;
+        if (r.repeat_type) out[r.date].repeat = r.repeat_type;
+      }
+    });
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `shiftCalendar_data.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('동기화 파일(shiftCalendar_data.json) 저장됨');
+  } catch(e) { /* 동기화 내보내기 실패는 무시 */ }
 }
 
 function updateLocalCache(dateStr, newMemo) {
