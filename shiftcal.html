@@ -1110,8 +1110,12 @@ function makeCell(dt, other) {
 function renderNotices() {
   const wrap  = document.getElementById('ticker-wrap');
   const track = document.getElementById('ticker-track');
-  if (!_notices.length) { wrap.hidden = true; return; }
   wrap.hidden = false;
+  if (!_notices.length) {
+    track.innerHTML = '<span class="ticker-item" style="color:var(--text-muted);font-weight:400">공지사항을 탭하여 추가하세요</span>';
+    track.style.animation = 'none';
+    return;
+  }
   // 텍스트를 두 번 반복 — 무한 루프 효과
   const items = _notices.map(n =>
     `<span class="ticker-item"><span class="ticker-dot"></span>${escH(n.text)}</span>`
@@ -1120,6 +1124,7 @@ function renderNotices() {
   // 공지 수에 따라 스크롤 속도 조정
   const speed = Math.max(12, _notices.length * 10);
   track.style.animationDuration = speed + 's';
+  track.style.animation = '';
 }
 
 // 공지 추가 (Supabase)
