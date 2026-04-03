@@ -385,9 +385,9 @@ body.dark .shift-DA{background:#1e0e06;color:#fdba74;border-color:#7a3010;}
 
 .memo-tag{
   width:100%;font-size:9px;font-weight:600;
-  padding:1px 2px;border-radius:3px;
+  padding:1px 3px;border-radius:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  line-height:1.4;letter-spacing:-0.3px;
+  line-height:1.4;
 }
 /* 메모 태그 — 라이트 */
 .mt-red {background:#fee2e2;color:#b91c1c;}
@@ -1516,11 +1516,9 @@ function getMemoTagText(line) {
   const m = line.match(/^(연차|대체|대휴|교육|출장|기타):(.+?)(\(.+\))?$/);
   if (m) {
     const name = m[2].trim();
-    // 타입 축약 + 이름 (셀 너비 절약)
-    const shortType = {연차:'연',대체:'대',대휴:'휴',교육:'교',출장:'출',기타:'기'}[m[1]] || m[1];
-    return shortType + ' ' + name;
+    return m[1] + (name ? ':' + name.slice(0, 3) : '');
   }
-  return line.slice(0, 5);
+  return line.slice(0, 6);
 }
 
 function getMemoTagClass(line) {
