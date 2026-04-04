@@ -727,12 +727,18 @@ const SB_KEY = 'sb_publishable_XvmpVyCxCq2Z2otbRKfWYw_9BGI39cV';
 // 교대 ID → 조 매핑
 const SHIFT_MAP = { a:'A', b:'B', c:'C', d:'D' };
 
+const SB_AUTH_EMAIL = 'starred3@naver.com';
+const TOKEN_KEY = 'sc_token';
+let _accessToken = null;
+
 /* ── Supabase REST helpers ──────────────────────────────── */
-const H = {
-  'apikey': SB_KEY,
-  'Authorization': 'Bearer ' + SB_KEY,
-  'Content-Type': 'application/json'
-};
+function getH() {
+  return {
+    'apikey': SB_KEY,
+    'Authorization': 'Bearer ' + (_accessToken || SB_KEY),
+    'Content-Type': 'application/json'
+  };
+}
 
 function sbSignal(ms = 12000) {
   // AbortController 방식 — iOS 12.2+ 호환 (AbortSignal.timeout보다 넓은 지원)
@@ -743,7 +749,7 @@ function sbSignal(ms = 12000) {
 
 async function sbGet(table, qs = '') {
   const r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`,
-    { headers: H, signal: sbSignal() });
+    { headers: getH(), signal: sbSignal() });
   if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
   return r.json();
 }
@@ -751,7 +757,7 @@ async function sbGet(table, qs = '') {
 async function sbPost(table, body, prefer = 'return=minimal') {
   const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
     method: 'POST',
-    headers: { ...H, 'Prefer': prefer },
+    headers: { ...getH(), 'Prefer': prefer },
     body: JSON.stringify(body),
     signal: sbSignal()
   });
@@ -761,7 +767,7 @@ async function sbPost(table, body, prefer = 'return=minimal') {
 async function sbPatch(table, filter, body) {
   const r = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
     method: 'PATCH',
-    headers: { ...H, 'Prefer': 'return=minimal' },
+    headers: { ...getH(), 'Prefer': 'return=minimal' },
     body: JSON.stringify(body),
     signal: sbSignal()
   });
@@ -771,7 +777,7 @@ async function sbPatch(table, filter, body) {
 async function sbDelete(table, filter) {
   const r = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
     method: 'DELETE',
-    headers: { ...H, 'Prefer': 'return=minimal' },
+    headers: { ...getH(), 'Prefer': 'return=minimal' },
     signal: sbSignal()
   });
   if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
@@ -785,24 +791,20 @@ let _authId     = null; // 'a'~'d' or '' (교대 외)
 let _filterTeam = null; // 'A'|'B'|'C'|'D' or null (전체)
 let _showAll    = false; // 필터 해제 여부
 
-async function sha256(text) {
-  const buf = await crypto.subtle.digest('SHA-256',
-    new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
 async function doLogin(id, pw) {
-  const rows = await sbGet('app_config', 'key=eq.app_password&select=value');
-  if (!rows.length) throw new Error('앱 설정을 찾을 수 없습니다');
-  const stored = rows[0].value;
-  const pwHash = await sha256(pw);
-  // 양쪽 모두 해시 비교 (DB값이 해시가 아니면 DB값도 해시하여 비교)
-  const storedHash = /^[a-f0-9]{64}$/.test(stored) ? stored : await sha256(stored);
-  if (pwHash !== storedHash) throw new Error('비밀번호가 올바르지 않습니다');
+  const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: SB_AUTH_EMAIL, password: pw }),
+    signal: sbSignal()
+  });
+  if (!res.ok) throw new Error('비밀번호가 올바르지 않습니다');
+  const { access_token } = await res.json();
+  _accessToken = access_token;
+  localStorage.setItem(TOKEN_KEY, access_token);
 
   _authId = id.toLowerCase().trim();
-  const storedId = _authId || 'all';
-  localStorage.setItem(AUTH_KEY, storedId);
+  localStorage.setItem(AUTH_KEY, _authId || 'all');
   applyFilter();
 }
 
@@ -817,11 +819,13 @@ function applyFilter() {
 }
 
 function isAuthed() {
-  return !!localStorage.getItem(AUTH_KEY);
+  return !!localStorage.getItem(TOKEN_KEY) && !!localStorage.getItem(AUTH_KEY);
 }
 
 function doLogout() {
   localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(TOKEN_KEY);
+  _accessToken = null;
   _authId = null; _filterTeam = null; _showAll = false;
   showScreen('login');
 }
@@ -2633,6 +2637,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* ── Bootstrap ───────────────────────────────────────────── */
+_accessToken = localStorage.getItem(TOKEN_KEY);
 if (isAuthed()) {
   applyFilter();
   initApp();
