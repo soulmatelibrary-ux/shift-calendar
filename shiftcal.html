@@ -1690,6 +1690,7 @@ function rebuildSheet() {
 }
 
 function getMemoTagText(line) {
+  if (line.startsWith('알림:')) return '🔔 ' + line.replace(/^알림:/, '').trim();
   const m = line.match(/^(연차|대체|대휴|교육|출장|기타):(.+?)(\(.+\))?$/);
   if (m) {
     const name = m[2].trim();
