@@ -2558,6 +2558,7 @@ async function initApp() {
     ]);
   } catch(e) {
     console.error('Supabase 로드 실패:', e);
+    if (e.message === '세션 만료') return; // doLogout()이 이미 로그인 화면으로 전환
     // 연결 실패 시에도 달력은 표시 (계산된 교대조로 표시)
     toast('서버 연결 실패 — 오프라인 모드로 표시합니다');
   } finally {
