@@ -803,7 +803,7 @@ const SB_KEY = 'sb_publishable_XvmpVyCxCq2Z2otbRKfWYw_9BGI39cV';
 // 교대 ID → 조 매핑
 const SHIFT_MAP = { a:'A', b:'B', c:'C', d:'D' };
 
-const SB_AUTH_EMAIL = 'starred3@naver.com';
+const SB_AUTH_EMAIL = atob('c3RhcnJlZDNAbmF2ZXIuY29t');
 const TOKEN_KEY   = 'sc_token';
 const REFRESH_KEY = 'sc_refresh';
 let _accessToken = null;
@@ -2639,6 +2639,7 @@ async function initApp() {
   // 데이터 유무 관계없이 달력 렌더 + 스와이프 초기화
   renderCalendar();
   initSwipe();
+  checkSafetyAlert();
 
   // 변경사항 감지 (최초 접속 시 lastSync 초기화)
   if (!localStorage.getItem(SYNC_KEY)) {
@@ -2695,6 +2696,55 @@ document.getElementById('btn-today').addEventListener('click', async () => {
   renderCalendar();
 });
 
+/* ── 안전점검 팝업 알림 ───────────────────────────────────── */
+function showSafetyModal(title, sub) {
+  const existing = document.getElementById('safety-modal-wrap');
+  if (existing) existing.remove();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'safety-modal-wrap';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);';
+  wrap.innerHTML =
+    `<div style="width:min(320px,88vw);background:var(--bg-panel);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;">` +
+      `<div style="background:#fef3c7;padding:20px 20px 16px;text-align:center;">` +
+        `<div style="font-size:36px;margin-bottom:8px;">🦺</div>` +
+        `<div style="font-size:16px;font-weight:800;color:#92400e;">안전점검 알림</div>` +
+      `</div>` +
+      `<div style="padding:18px 20px;text-align:center;">` +
+        `<div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.6;">${escH(title)}</div>` +
+        `<div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${escH(sub)}</div>` +
+      `</div>` +
+      `<div style="padding:0 20px 20px;">` +
+        `<button id="safety-ok-btn" style="width:100%;height:42px;background:#d97706;border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">확인</button>` +
+      `</div>` +
+    `</div>`;
+  document.body.appendChild(wrap);
+  document.getElementById('safety-ok-btn').addEventListener('click', () => wrap.remove());
+}
+
+function checkSafetyAlert() {
+  if (SHIFT_MAP[_authId]) return;                    // 교대근무자(a/b/c/d) 제외
+  const shownKey = 'sc_safety_' + TODAY;
+  if (localStorage.getItem(shownKey)) return;        // 오늘 이미 표시함
+
+  const day = todayDt.getDate();
+  const checkDays = [4, 14, 24];
+  const preDays   = [3, 13, 23];
+
+  let title = null, sub = null;
+  if (checkDays.includes(day)) {
+    title = `오늘(${day}일)은 안전점검일입니다.`;
+    sub   = '점검을 완료해 주세요.';
+  } else if (preDays.includes(day)) {
+    title = `내일(${day + 1}일)은 안전점검일입니다.`;
+    sub   = '미리 준비해 주세요.';
+  }
+
+  if (!title) return;
+  localStorage.setItem(shownKey, '1');
+  showSafetyModal(title, sub);
+}
+
 // Refresh
 document.getElementById('btn-refresh').addEventListener('click', async () => {
   if (_monthLoading) return;
@@ -2707,6 +2757,7 @@ document.getElementById('btn-refresh').addEventListener('click', async () => {
       loadStaff(), loadNotices(), loadCarry(curY)
     ]);
     renderCalendar();
+    checkSafetyAlert();
     if (changes.length) {
       showChangesModal(changes);
     } else {
