@@ -728,7 +728,8 @@ const SB_KEY = 'sb_publishable_XvmpVyCxCq2Z2otbRKfWYw_9BGI39cV';
 const SHIFT_MAP = { a:'A', b:'B', c:'C', d:'D' };
 
 const SB_AUTH_EMAIL = 'starred3@naver.com';
-const TOKEN_KEY = 'sc_token';
+const TOKEN_KEY   = 'sc_token';
+const REFRESH_KEY = 'sc_refresh';
 let _accessToken = null;
 
 /* ── Supabase REST helpers ──────────────────────────────── */
@@ -747,39 +748,80 @@ function sbSignal(ms = 12000) {
   return ctrl.signal;
 }
 
+async function refreshToken() {
+  const rt = localStorage.getItem(REFRESH_KEY);
+  if (!rt) return false;
+  try {
+    const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: rt }),
+      signal: sbSignal(8000)
+    });
+    if (!res.ok) return false;
+    const { access_token, refresh_token: newRt } = await res.json();
+    _accessToken = access_token;
+    localStorage.setItem(TOKEN_KEY, access_token);
+    if (newRt) localStorage.setItem(REFRESH_KEY, newRt);
+    return true;
+  } catch { return false; }
+}
+
 async function sbGet(table, qs = '') {
-  const r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`,
+  let r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`,
     { headers: getH(), signal: sbSignal() });
+  if (r.status === 401) {
+    const ok = await refreshToken();
+    if (!ok) { doLogout(); throw new Error('세션 만료 — 다시 로그인해주세요'); }
+    r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`,
+      { headers: getH(), signal: sbSignal() });
+  }
   if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
   return r.json();
 }
 
 async function sbPost(table, body, prefer = 'return=minimal') {
-  const r = await fetch(`${SB_URL}/rest/v1/${table}`, {
-    method: 'POST',
-    headers: { ...getH(), 'Prefer': prefer },
-    body: JSON.stringify(body),
-    signal: sbSignal()
+  let r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+    method: 'POST', headers: { ...getH(), 'Prefer': prefer },
+    body: JSON.stringify(body), signal: sbSignal()
   });
+  if (r.status === 401) {
+    if (!await refreshToken()) { doLogout(); throw new Error('세션 만료'); }
+    r = await fetch(`${SB_URL}/rest/v1/${table}`, {
+      method: 'POST', headers: { ...getH(), 'Prefer': prefer },
+      body: JSON.stringify(body), signal: sbSignal()
+    });
+  }
   if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
 }
 
 async function sbPatch(table, filter, body) {
-  const r = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
-    method: 'PATCH',
-    headers: { ...getH(), 'Prefer': 'return=minimal' },
-    body: JSON.stringify(body),
-    signal: sbSignal()
+  let r = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
+    method: 'PATCH', headers: { ...getH(), 'Prefer': 'return=minimal' },
+    body: JSON.stringify(body), signal: sbSignal()
   });
+  if (r.status === 401) {
+    if (!await refreshToken()) { doLogout(); throw new Error('세션 만료'); }
+    r = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
+      method: 'PATCH', headers: { ...getH(), 'Prefer': 'return=minimal' },
+      body: JSON.stringify(body), signal: sbSignal()
+    });
+  }
   if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
 }
 
 async function sbDelete(table, filter) {
-  const r = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
-    method: 'DELETE',
-    headers: { ...getH(), 'Prefer': 'return=minimal' },
+  let r = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
+    method: 'DELETE', headers: { ...getH(), 'Prefer': 'return=minimal' },
     signal: sbSignal()
   });
+  if (r.status === 401) {
+    if (!await refreshToken()) { doLogout(); throw new Error('세션 만료'); }
+    r = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
+      method: 'DELETE', headers: { ...getH(), 'Prefer': 'return=minimal' },
+      signal: sbSignal()
+    });
+  }
   if (!r.ok) throw new Error(`[${table}] ${r.status}: ${await r.text()}`);
 }
 
@@ -799,9 +841,10 @@ async function doLogin(id, pw) {
     signal: sbSignal()
   });
   if (!res.ok) throw new Error('비밀번호가 올바르지 않습니다');
-  const { access_token } = await res.json();
+  const { access_token, refresh_token } = await res.json();
   _accessToken = access_token;
   localStorage.setItem(TOKEN_KEY, access_token);
+  if (refresh_token) localStorage.setItem(REFRESH_KEY, refresh_token);
 
   _authId = id.toLowerCase().trim();
   localStorage.setItem(AUTH_KEY, _authId || 'all');
@@ -825,6 +868,7 @@ function isAuthed() {
 function doLogout() {
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
   _accessToken = null;
   _authId = null; _filterTeam = null; _showAll = false;
   showScreen('login');
