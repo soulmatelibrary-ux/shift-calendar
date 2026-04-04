@@ -413,15 +413,19 @@ body.dark .cal-day.other-month{box-shadow:none;}
   line-height:1.4;box-sizing:border-box;
 }
 /* 메모 태그 — 라이트 */
-.mt-red {background:#fee2e2;color:#b91c1c;}
-.mt-blue{background:#dbeafe;color:#1d4ed8;}
+.mt-red  {background:#fee2e2;color:#b91c1c;}
+.mt-blue {background:#dbeafe;color:#1d4ed8;}
 .mt-green{background:#d1fae5;color:#065f46;}
-.mt-gray{background:#f3f4f6;color:#374151;}
+.mt-gray {background:#f3f4f6;color:#374151;}
+.mt-alert{background:#fef9c3;color:#a16207;font-weight:700;}
 /* 메모 태그 — 다크 */
-body.dark .mt-red {background:rgba(220,38,38,0.22);color:#fca5a5;}
-body.dark .mt-blue{background:rgba(37,99,235,0.22);color:#93c5fd;}
+body.dark .mt-red  {background:rgba(220,38,38,0.22);color:#fca5a5;}
+body.dark .mt-blue {background:rgba(37,99,235,0.22);color:#93c5fd;}
 body.dark .mt-green{background:rgba(22,163,74,0.22);color:#86efac;}
-body.dark .mt-gray{background:rgba(100,116,139,0.25);color:#cbd5e1;}
+body.dark .mt-gray {background:rgba(100,116,139,0.25);color:#cbd5e1;}
+body.dark .mt-alert{background:rgba(202,138,4,0.22);color:#fde047;}
+/* 달력 셀 알림 벨 */
+.cell-alert-bell{font-size:9px;position:absolute;top:2px;right:2px;}
 .memo-more{
   font-size:9px;color:var(--g5);font-weight:600;
   width:100%;text-align:right;padding-right:2px;line-height:1.2;
@@ -1286,6 +1290,14 @@ function makeCell(dt, other) {
   }
 
   if (memos.length > 0 && !other) {
+    // 알림 메모가 있으면 셀 상단에 🔔 표시
+    if (memos.some(m => m.startsWith('알림:'))) {
+      const bell = document.createElement('div');
+      bell.className = 'cell-alert-bell';
+      bell.textContent = '🔔';
+      cell.style.position = 'relative';
+      cell.appendChild(bell);
+    }
     memos.slice(0, 4).forEach(line => {
       const tag = document.createElement('div');
       tag.className = 'memo-tag ' + getMemoTagClass(line);
@@ -1626,6 +1638,15 @@ function rebuildSheet() {
     html += `<div class="readonly-note">📌 지난 달 일정 — 읽기 전용</div>`;
   }
 
+  // 알림 메모 상단 강조 배너
+  const alertMemos = memos.filter(m => m.startsWith('알림:'));
+  if (alertMemos.length) {
+    html += `<div style="background:#fef9c3;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin-bottom:8px;">
+      <div style="font-size:12px;font-weight:700;color:#a16207;margin-bottom:4px;">🔔 알림</div>
+      ${alertMemos.map(m => `<div style="font-size:13px;color:#78350f;">${escH(m.replace(/^알림:/, ''))}</div>`).join('')}
+    </div>`;
+  }
+
   // Memo list
   html += `<div><div class="section-label" style="margin-bottom:8px">일정 메모</div>`;
   if (!memos.length) {
@@ -1679,6 +1700,7 @@ function getMemoTagText(line) {
 }
 
 function getMemoTagClass(line) {
+  if (/^알림/.test(line))             return 'mt-alert';
   if (/^(연차|대휴|교육)/.test(line)) return 'mt-red';
   if (/^(대체|출장)/.test(line))      return 'mt-blue';
   if (/^기타/.test(line))             return 'mt-gray';
@@ -1726,7 +1748,7 @@ function buildAddForm() {
     </div>`;
   }
 
-  const types = ['메모','연차','대체','대휴','교육','출장','기타'];
+  const types = ['메모','연차','대체','대휴','교육','출장','기타','알림'];
   // 로그인 팀의 첫 번째 직원 이름 (기본값)
   const myTeamDefault = _filterTeam
     ? (_staff.find(s => s.shift === _filterTeam &&
@@ -1751,6 +1773,8 @@ function buildAddForm() {
           <input type="date" id="add-ref" placeholder="원 대체일 (선택)" style="margin-top:4px">`;
   } else if (_addType === '대체') {
     f += `<select id="add-input">${staffOpts(_curDate, { sortDayFirst: true })}</select>`;
+  } else if (_addType === '알림') {
+    f += `<textarea id="add-input" placeholder="알림 내용 입력" rows="2" maxlength="100"></textarea>`;
   } else if (['교육','출장','기타'].includes(_addType)) {
     f += `<select id="add-input">${staffOpts(_curDate)}</select>
           <input type="text" id="add-ref" placeholder="${_addType}명/비고 (선택)" style="margin-top:4px">`;
@@ -2645,7 +2669,9 @@ async function initApp() {
   // 데이터 유무 관계없이 달력 렌더 + 스와이프 초기화
   renderCalendar();
   initSwipe();
+  checkMemoAlerts();
   checkSafetyAlert();
+  checkBaseVersionAlert();
 
   // 변경사항 감지 (최초 접속 시 lastSync 초기화)
   if (!localStorage.getItem(SYNC_KEY)) {
@@ -2702,47 +2728,111 @@ document.getElementById('btn-today').addEventListener('click', async () => {
   renderCalendar();
 });
 
-/* ── 안전점검 팝업 알림 ───────────────────────────────────── */
-function showSafetyModal(title, sub) {
-  const existing = document.getElementById('safety-modal-wrap');
-  if (existing) existing.remove();
+/* ── 공통 알림 팝업 ──────────────────────────────────────── */
+// 테마 정의 (라이트/다크) — 색상 한 곳에서만 관리
+const ALERT_THEMES = {
+  safety: {
+    light: { bg:'#fef3c7', text:'#92400e', btn:'#d97706' },
+    dark:  { bg:'#2d1f00', text:'#fde68a', btn:'#b45309' }
+  },
+  doc: {
+    light: { bg:'#dbeafe', text:'#1e40af', btn:'#2563eb' },
+    dark:  { bg:'#0d1e30', text:'#93c5fd', btn:'#1d4ed8' }
+  }
+};
 
+const _alertQueue = [];
+let _alertShowing = false;
+
+function showAlertModal({ icon, heading, title, sub, theme }) {
+  _alertQueue.push({ icon, heading, title, sub, theme });
+  if (!_alertShowing) _nextAlertModal();
+}
+
+function _nextAlertModal() {
+  if (!_alertQueue.length) { _alertShowing = false; return; }
+  _alertShowing = true;
+
+  const { icon, heading, title, sub, theme } = _alertQueue.shift();
   const isDark = document.body.classList.contains('dark');
-  const headerBg  = isDark ? '#2d1f00' : '#fef3c7';
-  const headerCol = isDark ? '#fde68a' : '#92400e';
-  const btnBg     = isDark ? '#b45309' : '#d97706';
+  const t = (ALERT_THEMES[theme] || ALERT_THEMES.safety)[isDark ? 'dark' : 'light'];
 
   const wrap = document.createElement('div');
-  wrap.id = 'safety-modal-wrap';
+  wrap.id = 'shared-alert-modal-wrap';
   wrap.style.cssText = 'position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);';
   wrap.innerHTML =
     `<div style="width:min(320px,88vw);background:var(--bg-panel);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;">` +
-      `<div style="background:${headerBg};padding:20px 20px 16px;text-align:center;">` +
-        `<div style="font-size:36px;margin-bottom:8px;">🦺</div>` +
-        `<div style="font-size:16px;font-weight:800;color:${headerCol};">안전점검 알림</div>` +
+      `<div style="background:${t.bg};padding:20px 20px 16px;text-align:center;">` +
+        `<div style="font-size:36px;margin-bottom:8px;">${icon}</div>` +
+        `<div style="font-size:16px;font-weight:800;color:${t.text};">${escH(heading)}</div>` +
       `</div>` +
       `<div style="padding:18px 20px;text-align:center;">` +
         `<div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.6;">${escH(title)}</div>` +
         `<div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${escH(sub)}</div>` +
       `</div>` +
       `<div style="padding:0 20px 20px;">` +
-        `<button id="safety-ok-btn" style="width:100%;height:42px;background:${btnBg};border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">확인</button>` +
+        `<button id="alert-ok-btn" style="width:100%;height:42px;background:${t.btn};border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">확인</button>` +
       `</div>` +
     `</div>`;
   document.body.appendChild(wrap);
-  document.getElementById('safety-ok-btn').addEventListener('click', () => wrap.remove());
+  document.getElementById('alert-ok-btn').addEventListener('click', () => {
+    wrap.remove();
+    _nextAlertModal(); // 다음 알림 표시
+  });
 }
 
+// 오래된 알림 localStorage 키 정리 (prefix 기준, 30일 이전)
+function pruneAlertKeys(prefix) {
+  const cutoff = fmtDate(new Date(todayDt.getFullYear(), todayDt.getMonth(), todayDt.getDate() - 30));
+  Object.keys(localStorage).forEach(k => {
+    if (k.startsWith(prefix) && k.slice(prefix.length) < cutoff) localStorage.removeItem(k);
+  });
+}
+
+/* ── 사용자 정의 메모 알림 ──────────────────────────────── */
+function checkMemoAlerts() {
+  const shownKey = 'sc_memo_alert_' + TODAY;
+  if (localStorage.getItem(shownKey)) return; // 오늘 이미 표시됨
+
+  const tomorrow = fmtDate(new Date(todayDt.getFullYear(), todayDt.getMonth(), todayDt.getDate() + 1));
+  const targets = [TODAY, tomorrow];
+  const found = []; // { date, text }
+
+  targets.forEach(d => {
+    const entry = _monthData[d] || _yearData[d];
+    if (!entry?.memo) return;
+    entry.memo.forEach(line => {
+      if (line.startsWith('알림:')) {
+        found.push({ date: d, text: line.replace(/^알림:/, '').trim() });
+      }
+    });
+  });
+
+  if (!found.length) return;
+  localStorage.setItem(shownKey, '1');
+  pruneAlertKeys('sc_memo_alert_');
+
+  found.forEach(({ date, text }) => {
+    const isToday    = date === TODAY;
+    const label      = isToday ? '오늘' : '내일';
+    const dateLabel  = date.slice(5).replace('-', '/');
+    showAlertModal({
+      icon: '🔔',
+      heading: `${label}(${dateLabel}) 알림`,
+      title: text,
+      sub: '',
+      theme: 'doc'
+    });
+  });
+}
+
+/* ── 안전점검 알림 ───────────────────────────────────────── */
 function checkSafetyAlert() {
   if (SHIFT_MAP[_authId]) return;                    // 교대근무자(a/b/c/d) 제외
   const shownKey = 'sc_safety_' + TODAY;
-  if (localStorage.getItem(shownKey)) return;        // 오늘 이미 표시함
+  if (localStorage.getItem(shownKey)) return;
 
-  // 30일 이전 sc_safety_ 키 정리
-  const cutoff = fmtDate(new Date(todayDt.getFullYear(), todayDt.getMonth(), todayDt.getDate() - 30));
-  Object.keys(localStorage).forEach(k => {
-    if (k.startsWith('sc_safety_') && k.slice(10) < cutoff) localStorage.removeItem(k);
-  });
+  pruneAlertKeys('sc_safety_');
 
   const day = todayDt.getDate();
   const checkDays = [4, 14, 24];
@@ -2759,7 +2849,43 @@ function checkSafetyAlert() {
 
   if (!title) return;
   localStorage.setItem(shownKey, '1');
-  showSafetyModal(title, sub);
+  showAlertModal({ icon:'🦺', heading:'안전점검 알림', title, sub, theme:'safety' });
+}
+
+/* ── 알림문서 발송 알림 (베이스버전 설치 +13/+14일) ───────── */
+function checkBaseVersionAlert() {
+  const shownKey = 'sc_basever_' + TODAY;
+  if (localStorage.getItem(shownKey)) return;
+
+  pruneAlertKeys('sc_basever_');
+
+  // 검색 대상 목록 — 항목 추가는 여기만 수정
+  const targets = [
+    { re: /베이스\s*버전\s*설치/, label: '베이스버전 설치' },
+    { re: /베이스\s*설치/,        label: '베이스 설치'     },
+    { re: /적응\s*자료\s*설치/,   label: '적응자료 설치'   }
+  ];
+
+  const src = { ..._yearData, ..._monthData };
+  const triggered = new Set();
+
+  Object.values(src).forEach(row => {
+    if (!row.memo || !row.memo.length) return;
+    const base = new Date(row.date + 'T00:00:00');
+    const d = base.getDate();
+    const plus13 = fmtDate(new Date(base.getFullYear(), base.getMonth(), d + 13));
+    const plus14 = fmtDate(new Date(base.getFullYear(), base.getMonth(), d + 14));
+    if (TODAY !== plus13 && TODAY !== plus14) return;
+
+    targets.forEach(({ re, label }) => {
+      if (row.memo.some(line => re.test(line))) triggered.add(label);
+    });
+  });
+
+  if (!triggered.size) return;
+  localStorage.setItem(shownKey, '1');
+  const sub = [...triggered].join(', ') + ' 기준 발송 기한입니다.';
+  showAlertModal({ icon:'📄', heading:'알림문서 발송', title:'알림문서를 발송해 주세요.', sub, theme:'doc' });
 }
 
 // Refresh
@@ -2774,7 +2900,9 @@ document.getElementById('btn-refresh').addEventListener('click', async () => {
       loadStaff(), loadNotices(), loadCarry(curY)
     ]);
     renderCalendar();
+    checkMemoAlerts();
     checkSafetyAlert();
+    checkBaseVersionAlert();
     if (changes.length) {
       showChangesModal(changes);
     } else {
@@ -2906,8 +3034,8 @@ document.getElementById('sheet-backdrop').addEventListener('click', closeSheet);
 // Keyboard
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    const safetyWrap = document.getElementById('safety-modal-wrap');
-    if (safetyWrap) { safetyWrap.remove(); return; }
+    const alertWrap = document.getElementById('shared-alert-modal-wrap');
+    if (alertWrap) { alertWrap.remove(); _alertQueue.length = 0; _alertShowing = false; return; }
     if (!document.getElementById('search-overlay').hidden) { closeSearch(); return; }
     closeSheet();
   }
