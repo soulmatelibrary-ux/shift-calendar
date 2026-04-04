@@ -312,33 +312,35 @@ body.dark .doh-zero{background:var(--g2);color:var(--g5);}
   border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;
 }
 
-/* Day-of-week row */
+/* Day-of-week row — cal-grid gap에 맞춰 정렬 */
 .cal-dow{
   display:grid;grid-template-columns:repeat(7,1fr);
-  background:var(--bg-cell-other);border-bottom:1.5px solid var(--g4);
+  gap:3px;padding:4px 4px 0;
+  background:transparent;
 }
 .dow-cell{
-  text-align:center;padding:7px 0;
+  text-align:center;padding:5px 0;
   font-size:11px;font-weight:700;letter-spacing:.3px;color:var(--text-muted);
 }
 .dow-cell:first-child{color:var(--holiday-text);}
 .dow-cell:last-child{color:var(--pri);}
 
-/* Calendar grid — 화면 꽉 채우기 */
+/* Calendar grid — 카드형 */
 .cal-grid{
   display:grid;grid-template-columns:repeat(7,1fr);
-  border-left:1.5px solid var(--g4);border-top:1.5px solid var(--g4);
+  gap:3px;padding:3px 4px 6px;
   flex:1;min-height:0;grid-auto-rows:1fr;
 }
 .cal-day{
-  border-right:1.5px solid var(--g4);border-bottom:1.5px solid var(--g4);
-  padding:4px 2px 5px;cursor:pointer;
+  border:1px solid var(--border);border-radius:8px;
+  padding:4px 3px 5px;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;gap:2px;
   background:var(--bg-cell);position:relative;overflow:hidden;
-  -webkit-tap-highlight-color:transparent;transition:background .15s,box-shadow .15s;
+  box-shadow:0 1px 4px rgba(0,0,0,0.06);
+  -webkit-tap-highlight-color:transparent;transition:background .15s,box-shadow .15s,border-color .15s;
 }
-.cal-day:active{background:var(--g2);box-shadow:inset 0 0 0 2px var(--pri);}
-.cal-day.other-month{background:var(--bg-cell-other);}
+.cal-day:active{background:var(--g2);border-color:var(--pri);box-shadow:0 0 0 2px var(--pri);}
+.cal-day.other-month{background:var(--bg-cell-other);border-color:transparent;box-shadow:none;}
 .cal-day.other-month .day-num{color:var(--text-dim);}
 .cal-day.other-month .shift-badge{opacity:.35;}
 /* 주말·공휴일 */
@@ -352,10 +354,10 @@ body.dark .doh-zero{background:var(--g2);color:var(--g5);}
   background:var(--holiday-bg)!important;color:var(--holiday-text)!important;border-color:var(--holiday-text)!important;
 }
 /* 오늘 */
-.cal-day.is-today{background:var(--today-bg);box-shadow:inset 0 0 0 1.5px var(--pri);}
-/* 내 조 근무일 강조 — 세련된 세이지 */
+.cal-day.is-today{background:var(--today-bg);border-color:var(--pri);border-width:2px;box-shadow:0 0 0 1px var(--pri);}
+/* 내 조 근무일 강조 */
 .cal-day.my-shift{background:var(--my-shift-bg);}
-/* 다른 조 날짜 흐리게 — 테두리는 유지하고 내용만 흐리게 */
+/* 다른 조 날짜 흐리게 */
 .cal-day.dim-shift{pointer-events:none;}
 .cal-day.dim-shift .day-num,
 .cal-day.dim-shift .shift-badge,
@@ -379,8 +381,8 @@ body.dark .doh-zero{background:var(--g2);color:var(--g5);}
 
 /* 교대조 뱃지 — 라이트 */
 .shift-badge{
-  font-size:9px;font-weight:700;padding:1px 4px;
-  border-radius:4px;line-height:1.6;white-space:nowrap;
+  font-size:9px;font-weight:700;padding:1px 5px;
+  border-radius:20px;line-height:1.6;white-space:nowrap;
   background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc;
 }
 .shift-AB{background:#bbf7d0;color:#166534;border-color:#16a34a;}
@@ -400,6 +402,8 @@ body.dark .shift-DA{background:#1e0e06;color:#fdba74;border-color:#7a3010;}
 body.dark .shift-other{background:#1a0a2e;color:#c4b5fd;border-color:#5b21b6;}
 body.dark .shift-24h{background:#052e16;color:#86efac;border-color:#166534;}
 body.dark .cal-day.is-24h{background:#052e16!important;}
+body.dark .cal-day{box-shadow:0 2px 8px rgba(0,0,0,0.3);}
+body.dark .cal-day.other-month{box-shadow:none;}
 
 .hol-name{
   width:100%;font-size:8px;font-weight:600;color:var(--holiday-text);
