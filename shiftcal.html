@@ -973,6 +973,7 @@ function getDateRange(start, end, repeat, maxDays = 90) {
     if (match) result.push(fmtDate(cur));
     cur.setDate(cur.getDate() + 1);
   }
+  if (cur <= new Date(end + 'T00:00:00')) toast(`⚠️ 최대 ${maxDays}일까지만 저장됩니다`);
   return result;
 }
 
@@ -991,6 +992,7 @@ let _staff     = [];
 let _notices   = [];
 let _allNotices = [];  // 관리 모달용 (만료 포함)
 let _carry     = {};
+let _dohCache  = null;
 let _lastSubName = ''; // 대체→대휴 이름 연동
 
 /* ── Data Loading ───────────────────────────────────────── */
@@ -1038,6 +1040,7 @@ async function loadCarry(y) {
 
 /* ── DOH Calculation ─────────────────────────────────────── */
 function calcDoh() {
+  if (_dohCache) return _dohCache;
   const earned = {}, used = {};
   const src = { ..._yearData, ..._monthData };
 
@@ -1053,6 +1056,7 @@ function calcDoh() {
         if (dow === 0 || dow === 6) h = 8;
         else if (/^[A-D]/.test(shift)) h = 11;
         if (h > 0) earned[mDae[1]] = (earned[mDae[1]] || 0) + h;
+        return;
       }
       const mHu = line.match(/^대휴:([^(]+)/);
       if (mHu) used[mHu[1].trim()] = (used[mHu[1].trim()] || 0) + 8;
@@ -1062,12 +1066,13 @@ function calcDoh() {
   const names = new Set([
     ...Object.keys(earned), ...Object.keys(used), ...Object.keys(_carry)
   ]);
-  return [...names]
+  _dohCache = [...names]
     .map(n => ({
       name: n,
       rem: (_carry[n] || 0) + (earned[n] || 0) - (used[n] || 0)
     }))
     .sort((a, b) => b.rem - a.rem);
+  return _dohCache;
 }
 
 /* ── Calendar Render ─────────────────────────────────────── */
@@ -1201,12 +1206,21 @@ function getUpcomingMemos() {
   return items;
 }
 
+function getDecemberDohWarnings() {
+  if (new Date().getMonth() !== 11) return []; // 12월만
+  const doh = calcDoh();
+  const remaining = doh.filter(r => r.rem > 0);
+  if (!remaining.length) return [];
+  const names = remaining.map(r => `${escH(r.name)} ${r.rem}h`).join(', ');
+  return [`<span class="ticker-item" style="color:#ef4444;font-weight:800"><span class="ticker-dot" style="background:#ef4444"></span>⚠️ 연말 대휴 미소진 — ${names} — 12월 말까지 소진하세요</span>`];
+}
+
 function renderNotices() {
   const wrap  = document.getElementById('ticker-wrap');
   const track = document.getElementById('ticker-track');
   wrap.hidden = false;
 
-  // 공지 + 향후 일정 메모 합치기
+  // 공지 + 향후 일정 메모 + 12월 대휴 경고 합치기
   const noticeItems = _notices.map(n =>
     `<span class="ticker-item"><span class="ticker-dot"></span>${escH(n.text)}</span>`
   );
@@ -1215,7 +1229,8 @@ function renderNotices() {
     return `<span class="ticker-item" style="color:${color};${m.is24h?'font-weight:800':''}"><span class="ticker-dot" style="background:${color}"></span>${escH(m.text)}</span>`;
   }
   );
-  const allItems = [...noticeItems, ...memoItems];
+  const decItems = getDecemberDohWarnings();
+  const allItems = [...decItems, ...noticeItems, ...memoItems];
 
   if (!allItems.length) {
     track.innerHTML = '<span class="ticker-item" style="color:var(--text-muted);font-weight:400">공지사항을 탭하여 추가하세요</span>';
@@ -1846,7 +1861,7 @@ async function onQuickLeaveSave() {
           await writeMemo(dayOffStr, [...futureMemo, crossLine], futureRow);
           if (_monthData[dayOffStr]) updateLocalCache(dayOffStr, [...futureMemo, crossLine]);
         }
-      } catch(e) { /* ignore */ }
+      } catch(e) { toast('⚠️ 교차 저장 실패 — 상대 날짜를 직접 확인해주세요'); }
     }
 
     _quickLeave = null;
@@ -2363,6 +2378,7 @@ async function syncExportJson() {
 }
 
 function updateLocalCache(dateStr, newMemo) {
+  _dohCache = null;
   if (!_monthData[dateStr]) _monthData[dateStr] = { date: dateStr, shift: null, memo: [] };
   _monthData[dateStr].memo = newMemo;
   if (_yearData[dateStr]) _yearData[dateStr].memo = newMemo;
