@@ -2431,6 +2431,7 @@ function updateLocalCache(dateStr, newMemo) {
 
 /* ── Touch Swipe to Close ────────────────────────────────── */
 let _swipeInited = false;
+let _monthLoading = false;
 function initSwipe() {
   if (_swipeInited) return;
   _swipeInited = true;
@@ -2467,13 +2468,15 @@ function initSwipe() {
     }
   }, { passive: false });
 
-  let touchSwipeHandled = false;
   grid.addEventListener('touchend', e => {
     if (!tactive || !locked) { tactive = false; return; }
     tactive = false;
     const dx = e.changedTouches[0].clientX - tx;
-    if (Math.abs(dx) > 50) { touchSwipeHandled = true; goMonth(dx < 0 ? 1 : -1); }
-  }, { passive: true });
+    if (Math.abs(dx) > 50) {
+      e.preventDefault(); // mouseup 발생 차단
+      goMonth(dx < 0 ? 1 : -1);
+    }
+  }, { passive: false });
 
   // 마우스 (데스크탑/Safari 트랙패드)
   let mx = 0, my = 0, mdown = false;
@@ -2484,7 +2487,7 @@ function initSwipe() {
   grid.addEventListener('mouseup', e => {
     if (!mdown) return;
     mdown = false;
-    if (touchSwipeHandled) { touchSwipeHandled = false; return; } // 터치 후 mouse 이벤트 무시
+    if (isSheetOpen()) return;
     const dx = e.clientX - mx;
     const dy = e.clientY - my;
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
@@ -2536,13 +2539,15 @@ function showScreen(n) {
 
 /* ── Month Navigation ────────────────────────────────────── */
 async function goMonth(delta) {
+  if (_monthLoading) return;
+  _monthLoading = true;
   curM += delta;
   if (curM > 12) { curM = 1; curY++; }
   if (curM < 1)  { curM = 12; curY--; }
   spinner(true);
   try { await loadMonth(curY, curM); renderCalendar(); }
   catch(e) { toast('로드 실패: ' + e.message); }
-  finally  { spinner(false); }
+  finally  { spinner(false); _monthLoading = false; }
 }
 
 /* ── Full Init ───────────────────────────────────────────── */
