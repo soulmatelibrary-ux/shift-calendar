@@ -2080,7 +2080,7 @@ async function onSaveMemo() {
         ? (rangeDataMap[dateStr] || null)
         : (_monthData[dateStr] || null);
       const existMemo = existing?.memo || [];
-      if (existMemo.includes(line)) continue;
+      if (existMemo.some(m => m.trim() === line.trim())) continue;
 
       const newMemo = [...existMemo, line];
 
@@ -2705,21 +2705,26 @@ function showSafetyModal(title, sub) {
   const existing = document.getElementById('safety-modal-wrap');
   if (existing) existing.remove();
 
+  const isDark = document.body.classList.contains('dark');
+  const headerBg  = isDark ? '#2d1f00' : '#fef3c7';
+  const headerCol = isDark ? '#fde68a' : '#92400e';
+  const btnBg     = isDark ? '#b45309' : '#d97706';
+
   const wrap = document.createElement('div');
   wrap.id = 'safety-modal-wrap';
   wrap.style.cssText = 'position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);';
   wrap.innerHTML =
     `<div style="width:min(320px,88vw);background:var(--bg-panel);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;">` +
-      `<div style="background:#fef3c7;padding:20px 20px 16px;text-align:center;">` +
+      `<div style="background:${headerBg};padding:20px 20px 16px;text-align:center;">` +
         `<div style="font-size:36px;margin-bottom:8px;">🦺</div>` +
-        `<div style="font-size:16px;font-weight:800;color:#92400e;">안전점검 알림</div>` +
+        `<div style="font-size:16px;font-weight:800;color:${headerCol};">안전점검 알림</div>` +
       `</div>` +
       `<div style="padding:18px 20px;text-align:center;">` +
         `<div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.6;">${escH(title)}</div>` +
         `<div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${escH(sub)}</div>` +
       `</div>` +
       `<div style="padding:0 20px 20px;">` +
-        `<button id="safety-ok-btn" style="width:100%;height:42px;background:#d97706;border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">확인</button>` +
+        `<button id="safety-ok-btn" style="width:100%;height:42px;background:${btnBg};border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;">확인</button>` +
       `</div>` +
     `</div>`;
   document.body.appendChild(wrap);
@@ -2730,6 +2735,12 @@ function checkSafetyAlert() {
   if (SHIFT_MAP[_authId]) return;                    // 교대근무자(a/b/c/d) 제외
   const shownKey = 'sc_safety_' + TODAY;
   if (localStorage.getItem(shownKey)) return;        // 오늘 이미 표시함
+
+  // 30일 이전 sc_safety_ 키 정리
+  const cutoff = fmtDate(new Date(todayDt.getFullYear(), todayDt.getMonth(), todayDt.getDate() - 30));
+  Object.keys(localStorage).forEach(k => {
+    if (k.startsWith('sc_safety_') && k.slice(10) < cutoff) localStorage.removeItem(k);
+  });
 
   const day = todayDt.getDate();
   const checkDays = [4, 14, 24];
@@ -2893,6 +2904,8 @@ document.getElementById('sheet-backdrop').addEventListener('click', closeSheet);
 // Keyboard
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    const safetyWrap = document.getElementById('safety-modal-wrap');
+    if (safetyWrap) { safetyWrap.remove(); return; }
     if (!document.getElementById('search-overlay').hidden) { closeSearch(); return; }
     closeSheet();
   }
