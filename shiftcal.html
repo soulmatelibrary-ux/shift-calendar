@@ -1237,7 +1237,7 @@ async function addNotice(text, startDate, endDate) {
   if (endDate) body.end_date = endDate;
   const r = await fetch(`${SB_URL}/rest/v1/notices`, {
     method:'POST',
-    headers:{ ...H, 'Prefer':'return=minimal' },
+    headers:{ ...getH(), 'Prefer':'return=minimal' },
     body:JSON.stringify(body),
     signal:sbSignal()
   });
@@ -1253,7 +1253,7 @@ async function updateNotice(id, text, startDate, endDate) {
   body.end_date = endDate || null;
   const r = await fetch(`${SB_URL}/rest/v1/notices?id=eq.${id}`, {
     method:'PATCH',
-    headers:{ ...H, 'Prefer':'return=minimal' },
+    headers:{ ...getH(), 'Prefer':'return=minimal' },
     body:JSON.stringify(body),
     signal:sbSignal()
   });
@@ -1266,7 +1266,7 @@ async function updateNotice(id, text, startDate, endDate) {
 async function deleteNotice(id) {
   await fetch(`${SB_URL}/rest/v1/notices?id=eq.${id}`, {
     method:'PATCH',
-    headers:{ ...H, 'Prefer':'return=minimal' },
+    headers:{ ...getH(), 'Prefer':'return=minimal' },
     body:JSON.stringify({ deleted_at: new Date().toISOString() }),
     signal:sbSignal()
   });
