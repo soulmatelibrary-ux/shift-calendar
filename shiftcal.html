@@ -58,8 +58,6 @@ body.dark{
   --today-bg:rgba(15,31,58,0.95);
   --pri:#3b82f6;--pri-lt:rgba(15,31,58,0.9);
   --ticker-bg:rgba(13,21,32,0.9);--ticker-border:#1e3050;--ticker-text:#7eb8f5;
-  /* 다크 배경 그라디언트 */
-  background:linear-gradient(135deg,#0a0a1a 0%,#0d0816 45%,#0a1020 100%);
 }
 html,body{height:100%;-webkit-text-size-adjust:100%;}
 body{
@@ -577,12 +575,12 @@ body.dark .mt-gray{background:rgba(100,116,139,0.25);color:#cbd5e1;}
 
 /* ─── Bottom Bar ────────────────────────────────────────── */
 #bottom-bar{
-  position:fixed;left:0;right:0;bottom:0;
+  position:fixed;left:50%;bottom:0;
+  transform:translateX(-50%);
+  width:100%;max-width:800px;
   background:var(--bg-header);border-top:1px solid var(--border);
   padding:10px 12px;padding-bottom:calc(14px + var(--safe-b));
   display:flex;align-items:center;justify-content:center;gap:6px;z-index:50;
-  max-width:800px;margin:0 auto;
-  left:50%;transform:translateX(-50%);width:100%;max-width:800px;
 }
 .bb-btn{
   flex:1;height:40px;border:none;background:var(--g2);border-radius:8px;
@@ -2142,7 +2140,7 @@ async function onDelMemo(idx) {
   let futureDates = [];
   try {
     const futureRows = await sbGet('shift_data',
-      `date=gt.${_curDate}&memo=cs.{${encodeURIComponent('"' + line + '"')}}&select=date&order=date`);
+      `date=gt.${_curDate}&memo=cs.{${JSON.stringify(line)}}&select=date&order=date`);
     futureDates = futureRows.map(r => r.date);
   } catch(e) {
     // 쿼리 실패 시 로컬 데이터로 폴백
@@ -2157,7 +2155,9 @@ async function onDelMemo(idx) {
     showDelModal(line, idx, futureDates);
   } else {
     if (!confirm('이 항목을 삭제하시겠습니까?')) return;
-    await execDelMemo(idx, 'only');
+    spinner(true);
+    try { await execDelMemo(idx, 'only'); }
+    finally { spinner(false); }
   }
 }
 
@@ -2670,17 +2670,23 @@ document.getElementById('pw-input').addEventListener('keydown', e => {
 document.getElementById('btn-prev').addEventListener('click', () => goMonth(-1));
 document.getElementById('btn-next').addEventListener('click', () => goMonth(1));
 document.getElementById('btn-today').addEventListener('click', async () => {
+  if (_monthLoading) return;
   const ny = todayDt.getFullYear(), nm = todayDt.getMonth()+1;
   if (ny !== curY || nm !== curM) {
+    _monthLoading = true;
     curY = ny; curM = nm;
     spinner(true);
-    try { await loadMonth(curY, curM); } finally { spinner(false); }
+    try { await loadMonth(curY, curM); }
+    catch(e) { toast('로드 실패: ' + e.message); }
+    finally { spinner(false); _monthLoading = false; }
   }
   renderCalendar();
 });
 
 // Refresh
 document.getElementById('btn-refresh').addEventListener('click', async () => {
+  if (_monthLoading) return;
+  _monthLoading = true;
   spinner(true);
   try {
     const changes = await checkChanges();
@@ -2696,7 +2702,7 @@ document.getElementById('btn-refresh').addEventListener('click', async () => {
       localStorage.setItem(SYNC_KEY, new Date().toISOString());
     }
   } catch(e) { toast('새로고침 실패'); }
-  finally    { spinner(false); }
+  finally    { spinner(false); _monthLoading = false; }
 });
 
 // Logout
@@ -2784,7 +2790,7 @@ function renderSearchResults(keyword) {
       const m = Number(el.dataset.m);
       if (curY !== y || curM !== m) {
         curY = y; curM = m;
-        loadMonthData().then(renderCalendar);
+        loadMonth(curY, curM).then(renderCalendar);
       }
       closeSearch();
     });
