@@ -578,20 +578,46 @@ body.dark .mt-gray{background:rgba(100,116,139,0.25);color:#cbd5e1;}
   position:fixed;left:50%;bottom:0;
   transform:translateX(-50%);
   width:100%;max-width:800px;
-  background:var(--bg-header);border-top:1px solid var(--border);
+  background:rgba(255,255,255,0.88);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid rgba(255,255,255,0.6);
+  box-shadow:0 -4px 20px rgba(0,0,0,0.08);
   padding:10px 12px;padding-bottom:calc(14px + var(--safe-b));
   display:flex;align-items:center;justify-content:center;gap:6px;z-index:50;
 }
+body.dark #bottom-bar{
+  background:rgba(12,12,28,0.88);
+  border-top:1px solid rgba(255,255,255,0.08);
+  box-shadow:0 -4px 20px rgba(0,0,0,0.4);
+}
 .bb-btn{
-  flex:1;height:40px;border:none;background:var(--g2);border-radius:8px;
+  flex:1;height:44px;
+  border:1px solid rgba(0,0,0,0.08);
+  background:#ffffff;
+  border-radius:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.05),inset 0 1px 0 rgba(255,255,255,0.9);
   font-size:13px;font-weight:600;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  text-align:center;
-  color:var(--text);
-  -webkit-tap-highlight-color:transparent;transition:background .1s;
+  text-align:center;color:var(--text);
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .1s,box-shadow .1s;
   white-space:nowrap;padding:0;
 }
-.bb-btn:active{background:var(--g3);}
+.bb-btn:active{
+  transform:translateY(1px);
+  box-shadow:0 1px 3px rgba(0,0,0,0.1),inset 0 1px 0 rgba(255,255,255,0.7);
+}
+body.dark .bb-btn{
+  background:rgba(255,255,255,0.1);
+  border:1px solid rgba(255,255,255,0.12);
+  box-shadow:0 2px 8px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.08);
+  color:var(--text);
+}
+body.dark .bb-btn:active{
+  background:rgba(255,255,255,0.16);
+  box-shadow:0 1px 3px rgba(0,0,0,0.4);
+  transform:translateY(1px);
+}
 /* select 스타일 override */
 .bb-select{
   -webkit-appearance:none;appearance:none;
@@ -1067,7 +1093,7 @@ function getDateRange(start, end, repeat, maxDays = 90) {
     if (match) result.push(fmtDate(cur));
     cur.setDate(cur.getDate() + 1);
   }
-  if (cur <= new Date(end + 'T00:00:00')) toast(`⚠️ 최대 ${maxDays}일까지만 저장됩니다`);
+  if (cur <= new Date(end + 'T00:00:00')) toast(`⚠️ 최대 ${maxDays}일까지만 저장됩니다 (일부 날짜 제외됨)`);
   return result;
 }
 
@@ -1120,9 +1146,10 @@ async function loadNotices() {
   const rows = await sbGet('notices',
     `deleted_at=is.null&select=id,text,start_date,end_date&order=created_at.desc`);
   _allNotices = rows;
+  const today = fmtDate(new Date()); // 항상 현재 날짜 기준 (자정 넘어도 정확)
   _notices = rows.filter(n =>
-    (!n.start_date || n.start_date <= TODAY) &&
-    (!n.end_date   || n.end_date   >= TODAY)
+    (!n.start_date || n.start_date <= today) &&
+    (!n.end_date   || n.end_date   >= today)
   );
 }
 
@@ -1456,8 +1483,8 @@ function renderNoticeModal() {
         <span class="nm-text">${escH(n.text)}</span>
         ${dateInfo}
       </div>
-      <button class="nm-edit" data-id="${n.id}" title="수정">✎</button>
-      <button class="nm-del" data-id="${n.id}">✕</button>
+      <button class="nm-edit" data-id="${escA(String(n.id))}" title="수정">✎</button>
+      <button class="nm-del" data-id="${escA(String(n.id))}">✕</button>
     </div>`;
   }).join('');
   list.querySelectorAll('.nm-del').forEach(btn => {
@@ -2477,8 +2504,12 @@ function updateLocalCache(dateStr, newMemo) {
   _dohCache = null;
   if (!_monthData[dateStr]) _monthData[dateStr] = { date: dateStr, shift: null, memo: [] };
   _monthData[dateStr].memo = newMemo;
-  if (_yearData[dateStr]) _yearData[dateStr].memo = newMemo;
-  else if (newMemo.length) _yearData[dateStr] = { date: dateStr, memo: newMemo };
+  if (newMemo.length) {
+    if (_yearData[dateStr]) _yearData[dateStr].memo = newMemo;
+    else _yearData[dateStr] = { date: dateStr, memo: newMemo };
+  } else {
+    delete _yearData[dateStr]; // 메모 전체 삭제 시 yearData에서도 제거
+  }
 }
 
 /* ── Touch Swipe to Close ────────────────────────────────── */
