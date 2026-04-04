@@ -801,7 +801,9 @@ const SB_URL = 'https://zonighcdnzdmsleltdmr.supabase.co';
 const SB_KEY = 'sb_publishable_XvmpVyCxCq2Z2otbRKfWYw_9BGI39cV';
 
 // 교대 ID → 조 매핑
-const SHIFT_MAP = { a:'A', b:'B', c:'C', d:'D' };
+const SHIFT_MAP      = { a:'A', b:'B', c:'C', d:'D' };
+const DOH_WEEKEND_H  = 8;  // 주말 대체근무 보상시간
+const DOH_NIGHTSHIFT_H = 11; // 교대야간 대체근무 보상시간
 
 const SB_AUTH_EMAIL = atob('c3RhcnJlZDNAbmF2ZXIuY29t');
 const TOKEN_KEY   = 'sc_token';
@@ -1174,8 +1176,8 @@ function calcDoh() {
       const mDae = line.match(/^대체:(.+)$/);
       if (mDae) {
         let h = 0;
-        if (dow === 0 || dow === 6) h = 8;
-        else if (/^[A-D]/.test(shift)) h = 11;
+        if (dow === 0 || dow === 6) h = DOH_WEEKEND_H;
+        else if (/^[A-D]/.test(shift)) h = DOH_NIGHTSHIFT_H;
         if (h > 0) earned[mDae[1]] = (earned[mDae[1]] || 0) + h;
         return;
       }
