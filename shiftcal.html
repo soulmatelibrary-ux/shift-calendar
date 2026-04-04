@@ -2430,7 +2430,10 @@ function updateLocalCache(dateStr, newMemo) {
 }
 
 /* ── Touch Swipe to Close ────────────────────────────────── */
+let _swipeInited = false;
 function initSwipe() {
+  if (_swipeInited) return;
+  _swipeInited = true;
   // ── 달력 좌우 스와이프 → 월 이동 ────────────────────────
   // 모바일: touchstart/touchmove/touchend (passive:false로 수평 시 preventDefault)
   // 데스크탑: mousedown/mouseup
