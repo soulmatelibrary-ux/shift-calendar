@@ -583,7 +583,7 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
 /* select 스타일 override */
 .bb-select{
   -webkit-appearance:none;appearance:none;
-  text-align:center;font-weight:700;font-size:13px;
+  text-align:center;text-align-last:center;font-weight:700;font-size:13px;
   padding:0;cursor:pointer;
 }
 /* 달력 하단 여백 (bottom-bar 높이만큼) */
@@ -1337,7 +1337,7 @@ function renderNoticeModal() {
   }
   list.innerHTML = _allNotices.map(n => {
     const dateInfo = (n.start_date || n.end_date)
-      ? `<div class="nm-dates">${n.start_date || ''} ~ ${n.end_date || ''}</div>` : '';
+      ? `<div class="nm-dates">${escH(n.start_date || '')} ~ ${escH(n.end_date || '')}</div>` : '';
     return `<div class="nm-item">
       <div class="nm-item-wrap">
         <span class="nm-text">${escH(n.text)}</span>
@@ -1443,6 +1443,7 @@ function showChangesModal(changes) {
 let _curDate = null;
 let _addOpen = false;
 let _addType = '메모';
+let _quickLeave = null; // { leaveName, subName } 확인 대기 상태
 
 function openSheet(dStr) {
   _curDate = dStr;
@@ -1474,7 +1475,8 @@ function closeSheet() {
   setTimeout(() => {
     bd.hidden = true;
     sh.hidden = true;
-    _curDate  = null;
+    _curDate    = null;
+    _quickLeave = null;
   }, 300);
 }
 
@@ -1547,10 +1549,10 @@ function getMemoTagText(line) {
   const m = line.match(/^(연차|대체|대휴|교육|출장|기타):(.+?)(\(.+\))?$/);
   if (m) {
     const name = m[2].trim();
-    const t = {연차:'연',대체:'대',대휴:'휴',교육:'교',출장:'출',기타:'기'}[m[1]];
+    const t = {연차:'연차',대체:'대체',대휴:'대휴',교육:'교육',출장:'출장',기타:'기타'}[m[1]];
     return t + ':' + name;
   }
-  return line.slice(0, 5);
+  return line;
 }
 
 function getMemoTagClass(line) {
@@ -1572,6 +1574,35 @@ function buildAddForm() {
       <button class="add-open-btn" id="add-open-btn">＋ 일정 추가</button>
     </div>`;
   }
+
+  // 연차+대체 확인 폼
+  if (_quickLeave) {
+    const tomorrow = new Date(_curDate + 'T00:00:00');
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = fmtDate(tomorrow);
+    return `<div class="add-card active" id="add-card">
+      <div class="section-label" style="margin-bottom:8px">연차+대체 확인</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <div style="font-size:11px;color:#888;margin-bottom:3px">연차 사용자</div>
+          <select id="ql-leave" style="width:100%">${staffOpts(_curDate, { defaultName: _quickLeave.leaveName })}</select>
+        </div>
+        <div>
+          <div style="font-size:11px;color:#888;margin-bottom:3px">대체 근무자</div>
+          <select id="ql-sub" style="width:100%">${staffOpts(_curDate, { defaultName: _quickLeave.subName, sortDayFirst: true })}</select>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;padding:4px 0">
+          <input type="checkbox" id="ql-dayoff-chk" checked style="width:18px;height:18px;cursor:pointer"> 대휴 추가
+        </label>
+        <input type="date" id="ql-dayoff-date" value="${tomorrowStr}" style="width:100%;font-size:14px;box-sizing:border-box">
+      </div>
+      <div class="add-actions">
+        <button class="btn btn-secondary" id="ql-cancel">취소</button>
+        <button class="btn btn-primary" id="ql-save">저장</button>
+      </div>
+    </div>`;
+  }
+
   const types = ['메모','연차','대체','대휴','교육','출장','기타'];
   // 로그인 팀의 첫 번째 직원 이름 (기본값)
   const myTeamDefault = _filterTeam
@@ -1685,6 +1716,21 @@ function bindAddForm() {
   });
   // 연차+대체 원클릭
   document.getElementById('add-quick-leave')?.addEventListener('click', onQuickLeave);
+  // 연차+대체 확인 폼
+  document.getElementById('ql-cancel')?.addEventListener('click', () => {
+    _quickLeave = null; _addOpen = false; rebuildSheet();
+  });
+  document.getElementById('ql-save')?.addEventListener('click', onQuickLeaveSave);
+  const qlChk  = document.getElementById('ql-dayoff-chk');
+  const qlDate = document.getElementById('ql-dayoff-date');
+  if (qlChk && qlDate) {
+    qlDate.disabled = !qlChk.checked;
+    qlDate.style.opacity = qlChk.checked ? '1' : '0.3';
+    qlChk.addEventListener('change', () => {
+      qlDate.disabled = !qlChk.checked;
+      qlDate.style.opacity = qlChk.checked ? '1' : '0.3';
+    });
+  }
   const inp = document.getElementById('add-input');
   if (inp) setTimeout(() => inp.focus(), 60);
 }
@@ -1714,13 +1760,13 @@ async function onQuickLeave() {
     // 주중: 야간 근무 팀 직원이 기본
     const nightTeam = getNightTeam(_curDate);
     if (nightTeam) {
-      const nightStaff = activeStaff.filter(s => s.shift === nightTeam);
+      const nightStaff = activeStaff.filter(s => s.shift === nightTeam || s.shift === nightTeam + '조');
       if (nightStaff.length) leaveName = nightStaff[0].name;
     }
   }
   // 주말이거나 야간 직원을 못 찾으면 로그인 팀 첫 직원
   if (!leaveName && _filterTeam) {
-    const teamStaff = activeStaff.filter(s => s.shift === _filterTeam);
+    const teamStaff = activeStaff.filter(s => s.shift === _filterTeam || s.shift === _filterTeam + '조');
     if (teamStaff.length) leaveName = teamStaff[0].name;
   }
   if (!leaveName) {
@@ -1730,10 +1776,24 @@ async function onQuickLeave() {
 
   // ── 대체 기본값: 현장일근 > 일근 > 사무실일근 순 (비교대 우선) ──
   let subName = '';
-  const dayWorkers = activeStaff.filter(s => !/^[A-D]$/.test(s.shift));
+  const dayWorkers = activeStaff.filter(s => !/^[A-D](조)?$/.test(s.shift));
   // 현장일근 우선
   const fieldWorker = dayWorkers.find(s => /현장/.test(s.shift || s.grade || ''));
   subName = fieldWorker ? fieldWorker.name : (dayWorkers.length ? dayWorkers[0].name : '');
+
+  // 바로 저장하지 않고 확인 폼 표시 (사용자가 수정 후 저장)
+  _quickLeave = { leaveName, subName };
+  _addOpen = true;
+  rebuildSheet();
+}
+
+// 연차+대체 확인 폼에서 저장 실행
+async function onQuickLeaveSave() {
+  const leaveEl = document.getElementById('ql-leave');
+  const subEl   = document.getElementById('ql-sub');
+  const leaveName = leaveEl?.value || '';
+  const subName   = subEl?.value   || '';
+  if (!leaveName) { toast('연차 사용자를 선택하세요'); return; }
 
   spinner(true);
   try {
@@ -1745,40 +1805,47 @@ async function onQuickLeave() {
     const leaveLine = `연차:${leaveName}`;
     if (!newMemo.includes(leaveLine)) newMemo.push(leaveLine);
 
-    // 대체 추가 (대체 근무할 일근자)
+    // 대체 추가
     if (subName) {
       const subLine = `대체:${subName}`;
       if (!newMemo.includes(subLine)) newMemo.push(subLine);
     }
 
-    // 대휴 추가 (연차 당사자, 다음날 기본)
-    const tomorrow = new Date(_curDate + 'T00:00:00');
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = fmtDate(tomorrow);
-    const dayOffLine = `대휴:${leaveName}(${shortDate(tomorrowStr)})`;
-    if (!newMemo.some(m => m.startsWith(`대휴:${leaveName}`))) {
-      newMemo.push(dayOffLine);
+    // 대휴 추가 — 체크된 경우만, 대체근무자 이름으로
+    const dayOffChk  = document.getElementById('ql-dayoff-chk');
+    const dayOffDate = document.getElementById('ql-dayoff-date');
+    const addDayOff  = dayOffChk?.checked ?? true;
+    const dayOffName = subName || leaveName;
+    const dayOffStr  = dayOffDate?.value || '';
+
+    if (addDayOff && dayOffStr) {
+      const dayOffLine = `대휴:${dayOffName}(${shortDate(dayOffStr)})`;
+      if (!newMemo.some(m => m.startsWith(`대휴:${dayOffName}`))) {
+        newMemo.push(dayOffLine);
+      }
     }
 
     await writeMemo(_curDate, newMemo, existing);
     updateLocalCache(_curDate, newMemo);
 
-    // 대휴 크로스 저장 (다음날에)
-    try {
-      let futureRow = _monthData[tomorrowStr];
-      if (!futureRow) {
-        const rows = await sbGet('shift_data', `date=eq.${tomorrowStr}&select=date,shift,memo`);
-        futureRow = rows[0] || null;
-      }
-      const futureMemo = futureRow?.memo || [];
-      const crossLine = `대휴:${leaveName}(${shortDate(_curDate)})`;
-      if (!futureMemo.includes(crossLine)) {
-        await writeMemo(tomorrowStr, [...futureMemo, crossLine], futureRow);
-        if (_monthData[tomorrowStr]) updateLocalCache(tomorrowStr, [...futureMemo, crossLine]);
-      }
-    } catch(e) { /* ignore */ }
+    // 대휴 크로스 저장 (지정 날짜에)
+    if (addDayOff && dayOffStr) {
+      try {
+        let futureRow = _monthData[dayOffStr];
+        if (!futureRow) {
+          const rows = await sbGet('shift_data', `date=eq.${dayOffStr}&select=date,shift,memo`);
+          futureRow = rows[0] || null;
+        }
+        const futureMemo = futureRow?.memo || [];
+        const crossLine = `대휴:${dayOffName}(${shortDate(_curDate)})`;
+        if (!futureMemo.includes(crossLine)) {
+          await writeMemo(dayOffStr, [...futureMemo, crossLine], futureRow);
+          if (_monthData[dayOffStr]) updateLocalCache(dayOffStr, [...futureMemo, crossLine]);
+        }
+      } catch(e) { /* ignore */ }
+    }
 
-    _lastSubName = leaveName;
+    _quickLeave = null;
     _addOpen = false;
     rebuildSheet();
     renderCalendar();
@@ -2453,6 +2520,9 @@ document.getElementById('login-btn').addEventListener('click', async () => {
   const btn = document.getElementById('login-btn');
   const err = document.getElementById('login-error');
   if (!pw) { err.textContent = '비밀번호를 입력하세요'; err.hidden = false; return; }
+  if (id && !Object.keys(SHIFT_MAP).includes(id)) {
+    err.textContent = '사용자 ID가 올바르지 않습니다'; err.hidden = false; return;
+  }
 
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div>';
