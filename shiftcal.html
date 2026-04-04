@@ -25,47 +25,56 @@
 :root{
   --pri:#2563eb;--pri-lt:#dbeafe;
   --red:#dc2626;--grn:#16a34a;
-  /* 라이트 모드 */
-  --bg-body:#f3f4f6;
+  /* 라이트 모드 — 밝은 글래스모피즘 */
   --bg-panel:#ffffff;
-  --bg-cell:#ffffff;
-  --bg-cell-other:#f9fafb;
-  --bg-header:#ffffff;
-  --border:#e5e7eb;
+  --bg-cell:rgba(255,255,255,0.72);
+  --bg-cell-other:rgba(255,255,255,0.42);
+  --bg-header:rgba(255,255,255,0.75);
+  --border:rgba(180,180,220,0.45);
   --text:#1f2937;--text-muted:#6b7280;--text-dim:#9ca3af;
-  --g0:#ffffff;--g1:#f9fafb;--g2:#f3f4f6;--g3:#e5e7eb;
-  --g4:#d1d5db;--g5:#9ca3af;--g6:#6b7280;--g7:#374151;--g8:#1f2937;--g9:#111827;
-  --holiday-bg:#fff0ef;--holiday-text:#bf3f36;
-  --weekend-bg:#f5f8ff;
-  --my-shift-bg:#e8f0fb;   /* 소프트 블루 — 라이트 */
-  --today-bg:#dbeafe;
-  --ticker-bg:#f0f7ff;--ticker-border:#cce0ff;--ticker-text:#1e40af;
+  --g0:#ffffff;--g1:#f9fafb;--g2:rgba(243,244,246,0.8);--g3:#e5e7eb;
+  --g4:rgba(140,150,200,0.65);--g5:#9ca3af;--g6:#6b7280;--g7:#374151;--g8:#1f2937;--g9:#111827;
+  --holiday-bg:rgba(255,240,239,0.88);--holiday-text:#bf3f36;
+  --weekend-bg:rgba(219,234,254,0.72);
+  --my-shift-bg:rgba(219,234,254,0.82);
+  --today-bg:rgba(219,234,254,0.96);
+  --ticker-bg:rgba(240,247,255,0.85);--ticker-border:#cce0ff;--ticker-text:#1e40af;
   --r:12px;--sh:0 4px 24px rgba(0,0,0,.12);
   --safe-b:env(safe-area-inset-bottom,0px);
 }
-/* ─── 다크 모드 ──────────────────────────────────────────── */
+/* ─── 다크 모드 — 딥 글래스모피즘 ──────────────────────── */
 body.dark{
-  --bg-body:#0f0f0f;
-  --bg-panel:#1a1a1a;
-  --bg-cell:#1a1a1a;
-  --bg-cell-other:#111111;
-  --bg-header:#1a1a1a;
-  --border:#2e2e2e;
+  --bg-panel:rgba(20,20,40,0.95);
+  --bg-cell:rgba(255,255,255,0.06);
+  --bg-cell-other:rgba(255,255,255,0.03);
+  --bg-header:rgba(10,10,26,0.82);
+  --border:rgba(255,255,255,0.1);
   --text:#e8e8e8;--text-muted:#9ca3af;--text-dim:#4b5563;
-  --g0:#1a1a1a;--g1:#111111;--g2:#222222;--g3:#2e2e2e;
-  --g4:#3a3a3a;--g5:#6b7280;--g6:#9ca3af;--g7:#d1d5db;--g8:#e8e8e8;--g9:#f3f4f6;
-  --holiday-bg:#1e0a0a;--holiday-text:#ff6b6b;
-  --weekend-bg:#0e0e16;
-  --my-shift-bg:#0d1828;   /* 딥 블루 — 다크 */
-  --today-bg:#0f1f3a;
-  --pri:#3b82f6;--pri-lt:#0f1f3a;
-  --ticker-bg:#0d1520;--ticker-border:#1e3050;--ticker-text:#7eb8f5;
+  --g0:rgba(26,26,46,0.95);--g1:rgba(17,17,34,0.9);--g2:rgba(30,30,50,0.8);--g3:rgba(46,46,70,0.8);
+  --g4:rgba(255,255,255,0.15);--g5:#6b7280;--g6:#9ca3af;--g7:#d1d5db;--g8:#e8e8e8;--g9:#f3f4f6;
+  --holiday-bg:rgba(30,10,10,0.9);--holiday-text:#ff6b6b;
+  --weekend-bg:rgba(14,14,30,0.8);
+  --my-shift-bg:rgba(13,24,40,0.85);
+  --today-bg:rgba(15,31,58,0.95);
+  --pri:#3b82f6;--pri-lt:rgba(15,31,58,0.9);
+  --ticker-bg:rgba(13,21,32,0.9);--ticker-border:#1e3050;--ticker-text:#7eb8f5;
+  /* 다크 배경 그라디언트 */
+  background:linear-gradient(135deg,#0a0a1a 0%,#0d0816 45%,#0a1020 100%);
 }
 html,body{height:100%;-webkit-text-size-adjust:100%;}
 body{
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  font-size:15px;color:var(--text);background:var(--bg-body);min-height:100dvh;
-  transition:background .2s,color .2s;
+  font-size:15px;color:var(--text);min-height:100dvh;
+  transition:color .2s;
+}
+/* 배경 그라디언트 — iOS Safari fixed 버그 우회: body::before 고정 레이어 */
+body::before{
+  content:'';position:fixed;inset:0;z-index:-1;
+  background:linear-gradient(135deg,#e8f0fe 0%,#f3e8ff 50%,#e0f2fe 100%);
+  transition:background .3s;
+}
+body.dark::before{
+  background:linear-gradient(135deg,#0a0a1a 0%,#0d0816 45%,#0a1020 100%);
 }
 
 /* ─── Form elements ─────────────────────────────────────── */
@@ -146,7 +155,9 @@ textarea{resize:vertical;min-height:72px;}
 
 /* Header */
 .cal-header{
-  background:var(--bg-header);border-bottom:1px solid var(--border);
+  background:var(--bg-header);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
   padding:10px 12px;display:flex;align-items:center;gap:7px;
   position:sticky;top:0;z-index:10;flex-wrap:nowrap;
 }
@@ -179,7 +190,8 @@ textarea{resize:vertical;min-height:72px;}
 /* DOH bar */
 #doh-bar{
   display:flex;flex-wrap:wrap;gap:6px;
-  padding:8px 12px;background:var(--g0);border-bottom:1px solid var(--g3);
+  padding:8px 12px;background:var(--bg-header);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
 }
 .doh-chip{padding:4px 10px;border-radius:100px;font-size:12px;font-weight:600;}
 .doh-pos{background:#dbeafe;color:#1e40af;}
@@ -323,9 +335,9 @@ body.dark .doh-zero{background:var(--g2);color:var(--g5);}
   padding:4px 2px 5px;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;gap:2px;
   background:var(--bg-cell);position:relative;overflow:hidden;
-  -webkit-tap-highlight-color:transparent;transition:background .1s;
+  -webkit-tap-highlight-color:transparent;transition:background .15s,box-shadow .15s;
 }
-.cal-day:active{background:var(--g2);}
+.cal-day:active{background:var(--g2);box-shadow:inset 0 0 0 2px var(--pri);}
 .cal-day.other-month{background:var(--bg-cell-other);}
 .cal-day.other-month .day-num{color:var(--text-dim);}
 .cal-day.other-month .shift-badge{opacity:.35;}
@@ -589,11 +601,26 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
 /* 달력 하단 여백 (bottom-bar 높이만큼) */
 #screen-calendar{padding-bottom:calc(70px + var(--safe-b))!important;}
 
+/* ─── Search ────────────────────────────────────────────── */
+#search-overlay[hidden]{display:none!important;}
+.search-result-item{
+  display:flex;flex-direction:column;gap:3px;
+  padding:10px 16px;cursor:pointer;border-bottom:1px solid var(--border);
+  -webkit-tap-highlight-color:transparent;
+}
+.search-result-item:last-child{border-bottom:none;}
+.search-result-item:active{background:var(--g2);}
+.search-result-date{font-size:12px;font-weight:700;color:var(--pri);}
+.search-result-memo{font-size:13px;color:var(--text);line-height:1.4;}
+.search-result-memo mark{background:#fef08a;color:#713f12;border-radius:2px;padding:0 1px;}
+body.dark .search-result-memo mark{background:#422006;color:#fde68a;}
+
 /* ─── Loading & Toast ───────────────────────────────────── */
 .page-spinner{
   position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-  background:rgba(255,255,255,.8);z-index:200;
+  background:rgba(255,255,255,.75);z-index:200;
 }
+body.dark .page-spinner{background:rgba(10,10,26,.8);}
 .spin-big{
   width:40px;height:40px;border:3px solid var(--g3);border-top-color:var(--pri);
   border-radius:50%;animation:spin .7s linear infinite;
@@ -660,6 +687,12 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
 <div id="screen-calendar" hidden>
   <!-- 메인 헤더 -->
   <div class="cal-header">
+    <button class="cal-icon-btn" id="btn-json-dl2" title="반출 (내보내기)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </button>
+    <button class="cal-icon-btn" id="btn-json-ul2" title="복구 (백업 업로드)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+    </button>
     <button class="cal-nav-btn" id="btn-prev" aria-label="이전 달">◀</button>
     <div class="cal-month-label" id="month-label"></div>
     <button class="cal-nav-btn" id="btn-next" aria-label="다음 달">▶</button>
@@ -690,8 +723,6 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
 ════════════════════════════════════════════════════════ -->
 <!-- 하단 고정 툴바 (달력화면) -->
 <div id="bottom-bar">
-  <button class="bb-btn bb-text" id="btn-json-dl2" title="내보내기">반출</button>
-  <button class="bb-btn bb-text" id="btn-json-ul2" title="백업복구">복구</button>
   <select id="filter-select" class="bb-btn bb-select">
     <option value="ALL">전체</option>
     <option value="A">A조</option>
@@ -701,6 +732,25 @@ body.dark .mt-gray{background:#222222;color:#9ca3af;}
   </select>
   <button class="bb-btn bb-text" id="btn-today">오늘</button>
   <button class="bb-btn bb-text" id="btn-refresh" title="새로고침">갱신</button>
+  <button class="bb-btn bb-text" id="btn-search" title="메모 검색">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <span style="margin-left:4px;font-size:12px;">검색</span>
+  </button>
+</div>
+
+<!-- 메모 검색 모달 -->
+<div id="search-overlay" hidden style="position:fixed;inset:0;z-index:500;display:flex;align-items:flex-start;justify-content:center;padding-top:60px;background:rgba(0,0,0,.5);">
+  <div id="search-card" style="width:min(480px,95vw);max-height:80dvh;background:var(--bg-panel);border-radius:var(--r);box-shadow:var(--sh);display:flex;flex-direction:column;overflow:hidden;">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--g5)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="search-input" type="search" placeholder="메모 검색..." autocomplete="off"
+        style="flex:1;border:none;outline:none;font-size:15px;background:transparent;color:var(--text);">
+      <button id="search-close-btn" style="border:none;background:none;font-size:20px;color:var(--g5);cursor:pointer;padding:0 4px;line-height:1;">✕</button>
+    </div>
+    <div id="search-results" style="overflow-y:auto;flex:1;padding:8px 0;">
+      <div class="search-empty" style="text-align:center;color:var(--g5);font-size:14px;padding:32px 16px;">검색어를 입력하세요</div>
+    </div>
+  </div>
 </div>
 
 <div id="sheet-backdrop" hidden></div>
@@ -2671,7 +2721,7 @@ document.getElementById('btn-dark').addEventListener('click', () => {
   updateDarkBtn();
 });
 
-// Bottom bar JSON 버튼
+// 헤더 JSON 버튼 (반출/복구)
 document.getElementById('btn-json-dl2').addEventListener('click', downloadJson);
 document.getElementById('btn-json-ul2').addEventListener('click', () => {
   document.getElementById('json-file-input').click();
@@ -2679,6 +2729,72 @@ document.getElementById('btn-json-ul2').addEventListener('click', () => {
 document.getElementById('json-file-input').addEventListener('change', e => {
   if (e.target.files[0]) uploadJson(e.target.files[0]);
   e.target.value = '';
+});
+
+// ── 메모 검색 ─────────────────────────────────────────────
+function openSearch() {
+  const overlay = document.getElementById('search-overlay');
+  overlay.hidden = false;
+  setTimeout(() => document.getElementById('search-input').focus(), 50);
+  renderSearchResults('');
+}
+function closeSearch() {
+  document.getElementById('search-overlay').hidden = true;
+  document.getElementById('search-input').value = '';
+}
+function renderSearchResults(keyword) {
+  const container = document.getElementById('search-results');
+  const kw = keyword.trim().toLowerCase();
+  if (!kw) {
+    container.innerHTML = '<div class="search-empty" style="text-align:center;color:var(--g5);font-size:14px;padding:32px 16px;">검색어를 입력하세요</div>';
+    return;
+  }
+  const src = { ..._yearData, ..._monthData };
+  const matches = [];
+  Object.values(src).forEach(row => {
+    if (!row.memo || !row.memo.length) return;
+    const matchedLines = row.memo.filter(line => line.toLowerCase().includes(kw));
+    if (matchedLines.length) matches.push({ date: row.date, lines: matchedLines });
+  });
+  matches.sort((a, b) => b.date.localeCompare(a.date));
+  if (!matches.length) {
+    container.innerHTML = '<div class="search-empty" style="text-align:center;color:var(--g5);font-size:14px;padding:32px 16px;">검색 결과가 없습니다</div>';
+    return;
+  }
+  const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedHtmlKw = escH(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(${escapedHtmlKw})`, 'gi');
+  container.innerHTML = matches.map(m => {
+    const [y, mo, d] = m.date.split('-');
+    const dt = new Date(m.date + 'T00:00:00');
+    const dow = ['일','월','화','수','목','금','토'][dt.getDay()];
+    const dateLabel = `${y}년 ${Number(mo)}월 ${Number(d)}일 (${dow})`;
+    const memoHtml = m.lines.map(line =>
+      `<div class="search-result-memo">${escH(line).replace(re, '<mark>$1</mark>')}</div>`
+    ).join('');
+    return `<div class="search-result-item" data-date="${m.date}" data-y="${y}" data-m="${Number(mo)}">`
+      + `<div class="search-result-date">${dateLabel}</div>${memoHtml}</div>`;
+  }).join('');
+
+  container.querySelectorAll('.search-result-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const y = Number(el.dataset.y);
+      const m = Number(el.dataset.m);
+      if (curY !== y || curM !== m) {
+        curY = y; curM = m;
+        loadMonthData().then(renderCalendar);
+      }
+      closeSearch();
+    });
+  });
+}
+document.getElementById('btn-search').addEventListener('click', openSearch);
+document.getElementById('search-close-btn').addEventListener('click', closeSearch);
+document.getElementById('search-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('search-overlay')) closeSearch();
+});
+document.getElementById('search-input').addEventListener('input', e => {
+  renderSearchResults(e.target.value);
 });
 
 // 전체 달력 보기 토글
@@ -2701,7 +2817,10 @@ document.getElementById('sheet-backdrop').addEventListener('click', closeSheet);
 
 // Keyboard
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeSheet();
+  if (e.key === 'Escape') {
+    if (!document.getElementById('search-overlay').hidden) { closeSearch(); return; }
+    closeSheet();
+  }
   if (document.getElementById('screen-calendar').hidden) return;
   if (e.key === 'ArrowLeft')  goMonth(-1);
   if (e.key === 'ArrowRight') goMonth(1);
