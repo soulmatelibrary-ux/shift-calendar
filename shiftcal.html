@@ -1152,10 +1152,12 @@ async function loadNotices() {
   const rows = await sbGet('notices',
     `deleted_at=is.null&select=id,text,start_date,end_date&order=created_at.desc`);
   _allNotices = rows;
-  const today = fmtDate(new Date()); // 항상 현재 날짜 기준 (자정 넘어도 정확)
+  const now = new Date();
+  const today = fmtDate(now);
+  const in4days = fmtDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 4));
   _notices = rows.filter(n =>
-    (!n.start_date || n.start_date <= today) &&
-    (!n.end_date   || n.end_date   >= today)
+    (!n.start_date || n.start_date <= in4days) && // 4일 앞 공지도 표시
+    (!n.end_date   || n.end_date   >= today)       // 만료된 공지는 제외
   );
 }
 
@@ -1326,10 +1328,15 @@ function getUpcomingMemos() {
     const key = fmtDate(d);
     const entry = _monthData[key] || _yearData[key];
     const dayLabel = i === 0 ? '오늘' : i === 1 ? '내일' : `${d.getMonth()+1}/${d.getDate()}`;
-    // 24시간 근무 감지 (AA, BB, CC, DD)
-    const shift = entry?.shift || calcShift(key);
-    if (shift.length === 2 && shift[0] === shift[1] && /^[A-D]$/.test(shift[0])) {
+    // 교대조 이상 감지 — DB 저장값이 계산값과 다를 때 티커 표시
+    const calcedShift = calcShift(key);
+    const shift = entry?.shift || calcedShift;
+    const is24h = shift.length === 2 && shift[0] === shift[1] && /^[A-D]$/.test(shift[0]);
+    const isNonStandard = entry?.shift && entry.shift !== calcedShift;
+    if (is24h) {
       items.push({ text: `[${dayLabel}] ${shift[0]}조 24시간 근무`, is24h: true });
+    } else if (isNonStandard) {
+      items.push({ text: `[${dayLabel}] 교대조 변경: ${shift}`, is24h: false });
     }
     if (!entry?.memo?.length) continue;
     entry.memo.forEach(line => {
@@ -1356,9 +1363,13 @@ function renderNotices() {
   wrap.hidden = false;
 
   // 공지 + 향후 일정 메모 + 12월 대휴 경고 합치기
-  const noticeItems = _notices.map(n =>
-    `<span class="ticker-item"><span class="ticker-dot"></span>${escH(n.text)}</span>`
-  );
+  const nowStr = fmtDate(new Date());
+  const noticeItems = _notices.map(n => {
+    const isFuture = n.start_date && n.start_date > nowStr;
+    const prefix = isFuture ? `[${n.start_date.slice(5).replace('-','/')}] ` : '';
+    const style = isFuture ? ' style="opacity:0.75"' : '';
+    return `<span class="ticker-item"${style}><span class="ticker-dot"></span>${escH(prefix + n.text)}</span>`;
+  });
   const memoItems = getUpcomingMemos().map(m => {
     const color = m.is24h ? 'var(--red)' : 'var(--grn)';
     return `<span class="ticker-item" style="color:${color};${m.is24h?'font-weight:800':''}"><span class="ticker-dot" style="background:${color}"></span>${escH(m.text)}</span>`;
