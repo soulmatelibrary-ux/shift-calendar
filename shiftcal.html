@@ -2418,7 +2418,7 @@ async function downloadJson() {
     const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `shiftcal_${new Date().toISOString().slice(0,10)}.txt`;
+    a.download = `shiftcal_${new Date().toISOString().slice(0,10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
     toast(`내보내기 완료: 일정 ${count}건, 공지 ${noticeRows.length}건, 이월 ${carryRows.length}건`);
@@ -2539,8 +2539,8 @@ async function uploadJson(file) {
         if (!n.text || existTexts.has(n.text)) continue;
         await sbPost('notices', {
           text: n.text,
-          start_date: isValidDate(n.start || n.startDate) ? (n.start || n.startDate) : null,
-          end_date:   isValidDate(n.end   || n.endDate)   ? (n.end   || n.endDate)   : null
+          start_date: isValidDate(n.startDate || n.start) ? (n.startDate || n.start) : null,
+          end_date:   isValidDate(n.endDate   || n.end)   ? (n.endDate   || n.end)   : null
         }, 'return=minimal');
         noticeCount++;
       }
@@ -2553,10 +2553,8 @@ async function uploadJson(file) {
       // 연도 중첩 형식 감지: { "2026": { "이름": hours } } vs flat: { "이름": hours }
       let flatCarry = data.carryOver;
       const firstVal = Object.values(data.carryOver)[0];
-      if (firstVal && typeof firstVal === 'object') {
-        flatCarry = data.carryOver[year]
-                 || data.carryOver[Object.keys(data.carryOver)[0]]
-                 || {};
+      if (firstVal !== undefined && firstVal !== null && typeof firstVal === 'object') {
+        flatCarry = data.carryOver[year] || {}; // 현재 연도만 처리 (타 연도 무시)
       }
       for (const [name, hours] of Object.entries(flatCarry)) {
         const trimmedName = typeof name === 'string' ? name.trim() : '';
