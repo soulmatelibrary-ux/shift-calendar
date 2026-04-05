@@ -2380,39 +2380,41 @@ async function downloadJson() {
   try {
     const cutoff = thisMonthFirst();
 
-    // 1) 일정 데이터
+    // 1) 일정 데이터 — staff 키로 감싸서 shiftCalendar 형식과 통일
     const rows = await sbGet('shift_data',
       `date=gte.${cutoff}&select=date,shift,memo,repeat_type&order=date`);
-    const out = {};
+    const staffOut = {};
     rows.forEach(r => {
       if (r.shift || (r.memo && r.memo.length) || r.repeat_type) {
-        out[r.date] = {};
-        if (r.shift) out[r.date].shift = r.shift;
-        if (r.memo && r.memo.length) out[r.date].memo = r.memo;
-        if (r.repeat_type) out[r.date].repeat = r.repeat_type;
+        staffOut[r.date] = {};
+        if (r.shift) staffOut[r.date].shift = r.shift;
+        if (r.memo && r.memo.length) staffOut[r.date].memo = r.memo;
+        if (r.repeat_type) staffOut[r.date].repeat = r.repeat_type;
       }
     });
+    const out = { staff: staffOut }; // shiftCalendar 호환 형식
 
-    // 2) 공지사항 (전체 — 만료 포함하여 완전 백업)
+    // 2) 공지사항 — startDate/endDate 필드명 사용 (shiftCalendar 형식)
     const noticeRows = await sbGet('notices',
       `deleted_at=is.null&select=text,start_date,end_date&order=created_at`);
     out.noticeData = {
       notices: noticeRows.map(n => ({
         text: n.text,
-        ...(n.start_date && { start: n.start_date }),
-        ...(n.end_date   && { end:   n.end_date   })
+        ...(n.start_date && { startDate: n.start_date }),
+        ...(n.end_date   && { endDate:   n.end_date   })
       }))
     };
 
-    // 3) 이월시간 (현재 연도)
+    // 3) 이월시간 — 연도 중첩 형식 사용 (shiftCalendar 형식)
     const carryRows = await sbGet('carry_over',
       `year=eq.${new Date().getFullYear()}&select=name,hours`);
     if (carryRows.length) {
-      out.carryOver = {};
-      carryRows.forEach(r => { out.carryOver[r.name] = Number(r.hours); });
+      const yr = new Date().getFullYear();
+      out.carryOver = { [yr]: {} };
+      carryRows.forEach(r => { out.carryOver[yr][r.name] = Number(r.hours); });
     }
 
-    const count = Object.keys(out).filter(k => !['noticeData','carryOver'].includes(k)).length;
+    const count = Object.keys(staffOut).length;
     const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -2537,8 +2539,8 @@ async function uploadJson(file) {
         if (!n.text || existTexts.has(n.text)) continue;
         await sbPost('notices', {
           text: n.text,
-          start_date: isValidDate(n.start) ? n.start : null,
-          end_date:   isValidDate(n.end)   ? n.end   : null
+          start_date: isValidDate(n.start || n.startDate) ? (n.start || n.startDate) : null,
+          end_date:   isValidDate(n.end   || n.endDate)   ? (n.end   || n.endDate)   : null
         }, 'return=minimal');
         noticeCount++;
       }
@@ -2548,10 +2550,18 @@ async function uploadJson(file) {
     let carryCount = 0;
     if (carrySync && data.carryOver) {
       const year = new Date().getFullYear();
-      for (const [name, hours] of Object.entries(data.carryOver)) {
+      // 연도 중첩 형식 감지: { "2026": { "이름": hours } } vs flat: { "이름": hours }
+      let flatCarry = data.carryOver;
+      const firstVal = Object.values(data.carryOver)[0];
+      if (firstVal && typeof firstVal === 'object') {
+        flatCarry = data.carryOver[year]
+                 || data.carryOver[Object.keys(data.carryOver)[0]]
+                 || {};
+      }
+      for (const [name, hours] of Object.entries(flatCarry)) {
         const trimmedName = typeof name === 'string' ? name.trim() : '';
-        if (!trimmedName || trimmedName.length > 20) continue;          // 이름 검증
-        if (typeof hours !== 'number' || hours < 0 || hours > 500) continue; // 시간 범위 검증
+        if (!trimmedName || trimmedName.length > 20) continue;
+        if (typeof hours !== 'number' || hours < 0 || hours > 500) continue;
         await sbPost('carry_over',
           { year, name: trimmedName, hours },
           'resolution=merge-duplicates,return=minimal');
