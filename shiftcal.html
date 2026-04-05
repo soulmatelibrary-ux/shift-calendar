@@ -1139,7 +1139,7 @@ async function loadYearData(y) {
   const rows = await sbGet('shift_data',
     `date=gte.${y}-01-01&date=lte.${y}-12-31&select=date,shift,memo`);
   _yearData = {};
-  rows.forEach(r => { if (r.memo && r.memo.length) _yearData[r.date] = r; });
+  rows.forEach(r => { if ((r.memo && r.memo.length) || r.shift) _yearData[r.date] = r; });
 }
 
 async function loadStaff() {
@@ -1323,7 +1323,7 @@ function makeCell(dt, other) {
 function getUpcomingMemos() {
   const items = []; // { text, is24h }
   const now = new Date();
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
     const key = fmtDate(d);
     const entry = _monthData[key] || _yearData[key];
@@ -1720,7 +1720,7 @@ function getMemoTagClass(line) {
 
 function fmtLine(line) {
   const [type, ...rest] = line.split(':');
-  const labels = { '연차':'연차', '대체':'대체근무', '대휴':'대휴사용' };
+  const labels = { '연차':'연차', '대체':'대체근무', '대휴':'대휴사용', '공가':'공가', '교육':'교육훈련', '출장':'출장', '기타':'기타', '알림':'알림' };
   return labels[type] ? `${labels[type]}: ${rest.join(':')}` : line;
 }
 
