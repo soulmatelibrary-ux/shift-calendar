@@ -573,6 +573,7 @@ body.dark .mt-alert{background:rgba(202,138,4,0.22);color:#fde047;}
 #nm-date-row input[type="date"]{flex:1;padding:8px 10px;font-size:13px;}
 #nm-date-row span{font-size:12px;color:var(--g5);}
 .nm-dates{font-size:11px;color:var(--g5);margin-top:1px;}
+.nm-created{font-size:10px;color:var(--g4);margin-top:2px;}
 .nm-item-wrap{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;}
 .nm-edit{width:24px;height:24px;border:none;background:none;font-size:13px;color:var(--g5);cursor:pointer;flex-shrink:0;}
 .nm-edit:active{color:var(--pri);}
@@ -1125,6 +1126,12 @@ function isShiftWorker(staffName, dateStr) {
   return s && /^[A-D]$/.test(s.shift);
 }
 
+/* ── 메모 타입 표시 레이블 (fmtLine / getMemoTagText 공유) ── */
+const MEMO_LABELS = {
+  '연차':'연차', '대체':'대체근무', '대휴':'대휴사용',
+  '공가':'공가', '교육':'교육훈련', '출장':'출장', '기타':'기타', '알림':'알림'
+};
+
 /* ── State ──────────────────────────────────────────────── */
 let curY, curM;
 let _monthData = {}; // 현재 달력 그리드 범위 데이터
@@ -1165,7 +1172,7 @@ async function loadStaff() {
 
 async function loadNotices() {
   const rows = await sbGet('notices',
-    `deleted_at=is.null&select=id,text,start_date,end_date&order=created_at.desc`);
+    `deleted_at=is.null&select=id,text,start_date,end_date,created_at&order=created_at.desc`);
   _allNotices = rows;
   const now = new Date();
   const today = fmtDate(now);
@@ -1367,8 +1374,9 @@ function getDecemberDohWarnings() {
   const doh = calcDoh();
   const remaining = doh.filter(r => r.rem > 0);
   if (!remaining.length) return [];
-  const names = remaining.map(r => `${escH(r.name)} ${r.rem}h`).join(', ');
-  return [`<span class="ticker-item" style="color:#ef4444;font-weight:800"><span class="ticker-dot" style="background:#ef4444"></span>⚠️ 연말 대휴 미소진 — ${names} — 12월 말까지 소진하세요</span>`];
+  const names = remaining.map(r => `${r.name} ${r.rem}h`).join(', ');
+  // 데이터 객체로 반환 — HTML 생성은 renderNotices()에서 일관 처리
+  return [{ text: `⚠️ 연말 대휴 미소진 — ${names} — 12월 말까지 소진하세요`, color: '#ef4444', bold: true }];
 }
 
 // 날짜 거리(0=오늘,1=내일…)에 따른 티커 색상
@@ -1390,22 +1398,30 @@ function tickerDayIndex(dateStr) {
 function renderNotices() {
   const wrap  = document.getElementById('ticker-wrap');
   const track = document.getElementById('ticker-track');
+  if (!wrap || !track) return;
   wrap.hidden = false;
 
   // 공지 + 향후 일정 메모 + 12월 대휴 경고 합치기
   const nowStr = fmtDate(new Date());
   const noticeItems = _notices.map(n => {
+    const isPast   = n.start_date && n.start_date < nowStr;  // 어제 이전 시작 (진행 중)
+    const isToday  = n.start_date && n.start_date === nowStr;
     const isFuture = n.start_date && n.start_date > nowStr;
-    const prefix = isFuture ? `[${n.start_date.slice(5).replace('-','/')}] ` : '';
-    const dayIdx = tickerDayIndex(isFuture ? n.start_date : null);
-    const color = TICKER_DAY_COLORS[dayIdx];
+    const prefix   = isFuture ? `[${n.start_date.slice(5).replace('-','/')}] ` : '';
+    let color;
+    if (isPast)        color = '#94a3b8';               // 진행 중 — 회색
+    else if (isToday)  color = TICKER_DAY_COLORS[0];   // 오늘 시작 — 파랑
+    else if (isFuture) color = TICKER_DAY_COLORS[tickerDayIndex(n.start_date)];
+    else               color = TICKER_DAY_COLORS[0];   // start_date 없음 — 파랑
     return `<span class="ticker-item" style="color:${color}"><span class="ticker-dot" style="background:${color}"></span>${escH(prefix + n.text)}</span>`;
   });
   const memoItems = getUpcomingMemos().map(m => {
     const color = m.is24h ? 'var(--red)' : TICKER_DAY_COLORS[m.dayIdx ?? 0];
     return `<span class="ticker-item" style="color:${color};${m.is24h?'font-weight:800':''}"><span class="ticker-dot" style="background:${color}"></span>${escH(m.text)}</span>`;
   });
-  const decItems = getDecemberDohWarnings();
+  const decItems = getDecemberDohWarnings().map(d => {
+    return `<span class="ticker-item" style="color:${d.color};${d.bold?'font-weight:800':''}"><span class="ticker-dot" style="background:${d.color}"></span>${escH(d.text)}</span>`;
+  });
   const allItems = [...decItems, ...noticeItems, ...memoItems];
 
   if (!allItems.length) {
@@ -1450,7 +1466,7 @@ async function deleteNotice(id) {
 let _editNoticeId = null;
 function openNoticeModal() {
   const existing = document.getElementById('notice-modal');
-  if (existing) { existing.remove(); return; }
+  if (existing) return; // 이미 열려 있으면 무시 (입력 중 데이터 손실 방지)
   _editNoticeId = null;
   const modal = document.createElement('div');
   modal.id = 'notice-modal';
@@ -1514,10 +1530,15 @@ function renderNoticeModal() {
   list.innerHTML = _allNotices.map(n => {
     const dateInfo = (n.start_date || n.end_date)
       ? `<div class="nm-dates">${escH(n.start_date || '')} ~ ${escH(n.end_date || '')}</div>` : '';
+    let createdStr = '';
+    if (n.created_at) {
+      const dt = new Date(n.created_at);
+      createdStr = `<div class="nm-created">등록 ${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}</div>`;
+    }
     return `<div class="nm-item">
       <div class="nm-item-wrap">
         <span class="nm-text">${escH(n.text)}</span>
-        ${dateInfo}
+        ${dateInfo}${createdStr}
       </div>
       <button class="nm-edit" data-id="${escA(String(n.id))}" title="수정">✎</button>
       <button class="nm-del" data-id="${escA(String(n.id))}">✕</button>
@@ -1525,15 +1546,19 @@ function renderNoticeModal() {
   }).join('');
   list.querySelectorAll('.nm-del').forEach(btn => {
     btn.onclick = async () => {
+      const id = +btn.dataset.id;
+      if (!Number.isInteger(id) || id <= 0) return;
       spinner(true);
-      try { await deleteNotice(+btn.dataset.id); renderNoticeModal(); }
+      try { await deleteNotice(id); renderNoticeModal(); }
       catch(e) { toast('공지 삭제 실패'); }
       finally { spinner(false); }
     };
   });
   list.querySelectorAll('.nm-edit').forEach(btn => {
     btn.onclick = () => {
-      const n = _allNotices.find(x => x.id === +btn.dataset.id);
+      const id = +btn.dataset.id;
+      if (!Number.isInteger(id) || id <= 0) return;
+      const n = _allNotices.find(x => x.id === id);
       if (!n) return;
       _editNoticeId = n.id;
       document.getElementById('nm-input').value = n.text;
@@ -1735,7 +1760,7 @@ function getMemoTagText(line) {
   const m = line.match(/^(연차|대체|대휴|교육|출장|기타):(.+?)(\(.+\))?$/);
   if (m) {
     const name = m[2].trim();
-    const t = {연차:'연차',대체:'대체',대휴:'대휴',교육:'교육',출장:'출장',기타:'기타'}[m[1]];
+    const t = MEMO_LABELS[m[1]] || m[1];
     return t + ':' + name;
   }
   return line;
@@ -1751,8 +1776,7 @@ function getMemoTagClass(line) {
 
 function fmtLine(line) {
   const [type, ...rest] = line.split(':');
-  const labels = { '연차':'연차', '대체':'대체근무', '대휴':'대휴사용', '공가':'공가', '교육':'교육훈련', '출장':'출장', '기타':'기타', '알림':'알림' };
-  return labels[type] ? `${labels[type]}: ${rest.join(':')}` : line;
+  return MEMO_LABELS[type] ? `${MEMO_LABELS[type]}: ${rest.join(':')}` : line;
 }
 
 function buildAddForm() {
