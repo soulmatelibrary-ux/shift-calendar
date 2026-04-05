@@ -646,6 +646,21 @@ body.dark #btn-notice-mgr{
 
 /* ─── Search ────────────────────────────────────────────── */
 #search-overlay[hidden]{display:none!important;}
+#search-card{
+  animation:search-slide-up .22s cubic-bezier(.32,1,.46,1);
+}
+@keyframes search-slide-up{
+  from{transform:translateY(100%);}
+  to{transform:translateY(0);}
+}
+.search-handle{
+  display:flex;justify-content:center;padding:10px 0 6px;flex-shrink:0;cursor:grab;
+}
+.search-handle-bar{width:36px;height:4px;border-radius:2px;background:var(--g3);}
+.search-section-title{
+  font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--g5);padding:10px 16px 4px;
+}
 .search-result-item{
   display:flex;flex-direction:column;gap:3px;
   padding:10px 16px;cursor:pointer;border-bottom:1px solid var(--border);
@@ -657,6 +672,10 @@ body.dark #btn-notice-mgr{
 .search-result-memo{font-size:13px;color:var(--text);line-height:1.4;}
 .search-result-memo mark{background:#fef08a;color:#713f12;border-radius:2px;padding:0 1px;}
 body.dark .search-result-memo mark{background:#422006;color:#fde68a;}
+.search-notice-period{font-size:11px;color:var(--g5);margin-bottom:2px;}
+.search-notice-item .search-result-memo{color:var(--g7);}
+.search-notice-item{cursor:default;}
+.search-empty{text-align:center;color:var(--g5);font-size:14px;padding:24px 16px;}
 
 /* ─── Loading & Toast ───────────────────────────────────── */
 .page-spinner{
@@ -784,17 +803,17 @@ body.dark .page-spinner{background:rgba(10,10,26,.8);}
   </button>
 </div>
 
-<!-- 메모 검색 모달 -->
-<div id="search-overlay" hidden style="position:fixed;inset:0;z-index:500;display:flex;align-items:flex-start;justify-content:center;padding-top:60px;background:rgba(0,0,0,.5);">
-  <div id="search-card" style="width:min(480px,95vw);max-height:80dvh;background:var(--bg-panel);border-radius:var(--r);box-shadow:var(--sh);display:flex;flex-direction:column;overflow:hidden;">
-    <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+<!-- 검색 — 하단 시트 -->
+<div id="search-overlay" hidden style="position:fixed;inset:0;z-index:500;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.45);">
+  <div id="search-card" style="width:100%;max-width:560px;max-height:72dvh;background:var(--bg-panel);border-radius:20px 20px 0 0;box-shadow:0 -8px 32px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden;padding-bottom:env(safe-area-inset-bottom,0px);">
+    <div class="search-handle"><div class="search-handle-bar"></div></div>
+    <div style="padding:0 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--g5)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="search-input" type="search" placeholder="메모 검색..." autocomplete="off"
-        style="flex:1;border:none;outline:none;font-size:15px;background:transparent;color:var(--text);">
+      <input id="search-input" type="search" placeholder="일정·공지 검색..." autocomplete="off"
+        style="flex:1;border:none;outline:none;font-size:16px;background:transparent;color:var(--text);">
       <button id="search-close-btn" style="border:none;background:none;font-size:20px;color:var(--g5);cursor:pointer;padding:0 4px;line-height:1;">✕</button>
     </div>
-    <div id="search-results" style="overflow-y:auto;flex:1;padding:8px 0;">
-      <div class="search-empty" style="text-align:center;color:var(--g5);font-size:14px;padding:32px 16px;">검색어를 입력하세요</div>
+    <div id="search-results" style="overflow-y:auto;flex:1;">
     </div>
   </div>
 </div>
@@ -2567,6 +2586,28 @@ async function uploadJson(file) {
       }
     }
 
+    // ── 직원 마스터 → Supabase staff_master 동기화 ──
+    let masterCount = 0;
+    if (Array.isArray(data.staffMaster) && data.staffMaster.length) {
+      const masterRows = data.staffMaster
+        .filter(s => s.name && typeof s.name === 'string' && s.name.trim())
+        .map(s => ({
+          name:      s.name.trim(),
+          emp_no:    s.emp_no    || 0,
+          grade:     s.grade     || '4급',
+          shift:     s.shift     || '일근',
+          from_date: s.from_date || null,
+          to_date:   s.to_date   || null,
+          no_excel:  !!s.no_excel
+        }));
+      // 50건씩 배치 upsert
+      for (let i = 0; i < masterRows.length; i += 50) {
+        await sbPost('staff_master', masterRows.slice(i, i + 50),
+          'resolution=merge-duplicates,return=minimal');
+      }
+      masterCount = masterRows.length;
+    }
+
     await Promise.all([loadMonth(curY, curM), loadYearData(curY), loadCarry(curY), loadNotices()]);
     renderCalendar();
 
@@ -2577,6 +2618,7 @@ async function uploadJson(file) {
     if (upsertCount) parts.push(`신규 ${upsertCount}건 반영`);
     if (noticeCount) parts.push(`공지 ${noticeCount}건`);
     if (carryCount) parts.push(`이월 ${carryCount}건`);
+    if (masterCount) parts.push(`직원 ${masterCount}명`);
     toast(`복구 완료 (${range}): ${parts.join(', ')}`);
     if (skippedCount) {
       setTimeout(() => toast(`※ 지난 달 일정 ${skippedCount}건은 동기화 제외`), 3000);
@@ -3064,44 +3106,65 @@ function renderSearchResults(keyword) {
   const container = document.getElementById('search-results');
   const kw = keyword.trim().toLowerCase();
   if (!kw) {
-    container.innerHTML = '<div class="search-empty" style="text-align:center;color:var(--g5);font-size:14px;padding:32px 16px;">검색어를 입력하세요</div>';
+    container.innerHTML = '';
     return;
   }
-  const src = { ..._yearData, ..._monthData };
-  const matches = [];
-  Object.values(src).forEach(row => {
-    if (!row.memo || !row.memo.length) return;
-    const matchedLines = row.memo.filter(line => line.toLowerCase().includes(kw));
-    if (matchedLines.length) matches.push({ date: row.date, lines: matchedLines });
-  });
-  matches.sort((a, b) => b.date.localeCompare(a.date));
-  if (!matches.length) {
-    container.innerHTML = '<div class="search-empty" style="text-align:center;color:var(--g5);font-size:14px;padding:32px 16px;">검색 결과가 없습니다</div>';
-    return;
-  }
-  const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
   const escapedHtmlKw = escH(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const re = new RegExp(`(${escapedHtmlKw})`, 'gi');
-  container.innerHTML = matches.map(m => {
-    const [y, mo, d] = m.date.split('-');
-    const dt = new Date(m.date + 'T00:00:00');
-    const dow = ['일','월','화','수','목','금','토'][dt.getDay()];
-    const dateLabel = `${y}년 ${Number(mo)}월 ${Number(d)}일 (${dow})`;
-    const memoHtml = m.lines.map(line =>
-      `<div class="search-result-memo">${escH(line).replace(re, '<mark>$1</mark>')}</div>`
-    ).join('');
-    return `<div class="search-result-item" data-date="${m.date}" data-y="${y}" data-m="${Number(mo)}">`
-      + `<div class="search-result-date">${dateLabel}</div>${memoHtml}</div>`;
-  }).join('');
+  const hl = s => escH(s).replace(re, '<mark>$1</mark>');
 
-  container.querySelectorAll('.search-result-item').forEach(el => {
+  // ── 공지사항 검색 ──
+  const noticeMatches = (_allNotices || []).filter(n =>
+    n.text && n.text.toLowerCase().includes(kw)
+  );
+
+  // ── 일정 메모 검색 ──
+  const src = { ..._yearData, ..._monthData };
+  const memoMatches = [];
+  Object.values(src).forEach(row => {
+    if (!row.memo || !row.memo.length) return;
+    const lines = row.memo.filter(line => line.toLowerCase().includes(kw));
+    if (lines.length) memoMatches.push({ date: row.date, lines });
+  });
+  memoMatches.sort((a, b) => b.date.localeCompare(a.date));
+
+  if (!noticeMatches.length && !memoMatches.length) {
+    container.innerHTML = '<div class="search-empty">검색 결과가 없습니다</div>';
+    return;
+  }
+
+  let html = '';
+
+  // 공지 섹션
+  if (noticeMatches.length) {
+    html += `<div class="search-section-title">📢 공지사항 &nbsp;<span style="font-weight:400;color:var(--g5)">${noticeMatches.length}건</span></div>`;
+    html += noticeMatches.map(n => {
+      const period = (n.start_date || n.end_date)
+        ? `<div class="search-notice-period">${n.start_date || '~'} ~ ${n.end_date || '~'}</div>` : '';
+      return `<div class="search-result-item search-notice-item">${period}<div class="search-result-memo">${hl(n.text)}</div></div>`;
+    }).join('');
+  }
+
+  // 일정 섹션
+  if (memoMatches.length) {
+    html += `<div class="search-section-title">📅 일정 &nbsp;<span style="font-weight:400;color:var(--g5)">${memoMatches.length}건</span></div>`;
+    html += memoMatches.map(m => {
+      const [y, mo, d] = m.date.split('-');
+      const dow = ['일','월','화','수','목','금','토'][new Date(m.date + 'T00:00:00').getDay()];
+      const dateLabel = `${y}년 ${Number(mo)}월 ${Number(d)}일 (${dow})`;
+      const memoHtml = m.lines.map(line => `<div class="search-result-memo">${hl(line)}</div>`).join('');
+      return `<div class="search-result-item" data-date="${m.date}" data-y="${y}" data-m="${Number(mo)}"><div class="search-result-date">${dateLabel}</div>${memoHtml}</div>`;
+    }).join('');
+  }
+
+  container.innerHTML = html;
+
+  // 일정 클릭 → 해당 월 이동
+  container.querySelectorAll('.search-result-item:not(.search-notice-item)').forEach(el => {
     el.addEventListener('click', () => {
-      const y = Number(el.dataset.y);
-      const m = Number(el.dataset.m);
-      if (curY !== y || curM !== m) {
-        curY = y; curM = m;
-        loadMonth(curY, curM).then(renderCalendar);
-      }
+      const y = Number(el.dataset.y), m = Number(el.dataset.m);
+      if (curY !== y || curM !== m) { curY = y; curM = m; loadMonth(curY, curM).then(renderCalendar); }
       closeSearch();
     });
   });
