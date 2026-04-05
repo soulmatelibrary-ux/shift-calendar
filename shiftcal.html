@@ -2374,11 +2374,13 @@ async function onShiftChange(newShift) {
   } catch(e) { toast('저장 실패: ' + e.message); }
 }
 
-/* ── JSON 다운로드 (현재 달~미래만 반출) ───────────────────── */
+/* ── JSON 다운로드 (현재 달~미래 일정 + 전체 공지사항 반출) ── */
 async function downloadJson() {
   spinner(true);
   try {
     const cutoff = thisMonthFirst();
+
+    // 1) 일정 데이터
     const rows = await sbGet('shift_data',
       `date=gte.${cutoff}&select=date,shift,memo,repeat_type&order=date`);
     const out = {};
@@ -2390,14 +2392,34 @@ async function downloadJson() {
         if (r.repeat_type) out[r.date].repeat = r.repeat_type;
       }
     });
-    const count = Object.keys(out).length;
+
+    // 2) 공지사항 (전체 — 만료 포함하여 완전 백업)
+    const noticeRows = await sbGet('notices',
+      `deleted_at=is.null&select=text,start_date,end_date&order=created_at`);
+    out.noticeData = {
+      notices: noticeRows.map(n => ({
+        text: n.text,
+        ...(n.start_date && { start: n.start_date }),
+        ...(n.end_date   && { end:   n.end_date   })
+      }))
+    };
+
+    // 3) 이월시간 (현재 연도)
+    const carryRows = await sbGet('carry_over',
+      `year=eq.${new Date().getFullYear()}&select=name,hours`);
+    if (carryRows.length) {
+      out.carryOver = {};
+      carryRows.forEach(r => { out.carryOver[r.name] = Number(r.hours); });
+    }
+
+    const count = Object.keys(out).filter(k => !['noticeData','carryOver'].includes(k)).length;
     const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `shiftcal_${new Date().toISOString().slice(0,10)}.txt`;
     a.click();
     URL.revokeObjectURL(a.href);
-    toast(`내보내기 완료: ${cutoff} ~ 미래 ${count}건`);
+    toast(`내보내기 완료: 일정 ${count}건, 공지 ${noticeRows.length}건, 이월 ${carryRows.length}건`);
   } catch(e) { toast('다운로드 실패: ' + e.message); }
   finally { spinner(false); }
 }
@@ -2502,19 +2524,23 @@ async function uploadJson(file) {
     }
 
     // ── 공지 → Supabase notices 동기화 ──
+    const isValidDate = d => {
+      if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+      const dt = new Date(d + 'T00:00:00');
+      return !isNaN(dt) && fmtDate(dt) === d;
+    };
     let noticeCount = 0;
     if (noticeSync && data.noticeData?.notices) {
       const existing = await sbGet('notices', 'deleted_at=is.null&select=text');
       const existTexts = new Set(existing.map(n => n.text));
       for (const n of data.noticeData.notices) {
-        if (n.text && !existTexts.has(n.text)) {
-          await sbPost('notices', {
-            text: n.text,
-            start_date: n.start || null,
-            end_date: n.end || null
-          }, 'return=minimal');
-          noticeCount++;
-        }
+        if (!n.text || existTexts.has(n.text)) continue;
+        await sbPost('notices', {
+          text: n.text,
+          start_date: isValidDate(n.start) ? n.start : null,
+          end_date:   isValidDate(n.end)   ? n.end   : null
+        }, 'return=minimal');
+        noticeCount++;
       }
     }
 
@@ -2523,12 +2549,13 @@ async function uploadJson(file) {
     if (carrySync && data.carryOver) {
       const year = new Date().getFullYear();
       for (const [name, hours] of Object.entries(data.carryOver)) {
-        if (typeof hours === 'number') {
-          await sbPost('carry_over',
-            { year, name, hours },
-            'resolution=merge-duplicates,return=minimal');
-          carryCount++;
-        }
+        const trimmedName = typeof name === 'string' ? name.trim() : '';
+        if (!trimmedName || trimmedName.length > 20) continue;          // 이름 검증
+        if (typeof hours !== 'number' || hours < 0 || hours > 500) continue; // 시간 범위 검증
+        await sbPost('carry_over',
+          { year, name: trimmedName, hours },
+          'resolution=merge-duplicates,return=minimal');
+        carryCount++;
       }
     }
 
