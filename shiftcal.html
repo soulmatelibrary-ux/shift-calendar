@@ -1340,9 +1340,8 @@ function getUpcomingMemos() {
     }
     if (!entry?.memo?.length) continue;
     entry.memo.forEach(line => {
-      if (/^(연차|대체|대휴|교육|출장|기타):/.test(line)) {
-        items.push({ text: `[${dayLabel}] ${fmtLine(line)}`, is24h: false });
-      }
+      if (line.startsWith('알림:')) return; // 알림은 별도 팝업으로 처리
+      items.push({ text: `[${dayLabel}] ${fmtLine(line)}`, is24h: false });
     });
   }
   return items;
