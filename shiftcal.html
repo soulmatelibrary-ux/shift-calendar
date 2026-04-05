@@ -628,6 +628,18 @@ body.dark .bb-btn:active{
   text-align:center;text-align-last:center;font-weight:700;font-size:13px;
   padding:0;cursor:pointer;
 }
+/* 공지 관리 버튼 — 기존 bb-btn보다 작게 */
+#btn-notice-mgr{
+  flex:0 0 34px;width:34px;height:34px;border-radius:8px;
+  font-size:15px;color:var(--pri);
+  border-color:rgba(99,102,241,0.18);
+  background:rgba(99,102,241,0.07);
+  box-shadow:none;
+}
+body.dark #btn-notice-mgr{
+  background:rgba(99,102,241,0.15);
+  border-color:rgba(99,102,241,0.3);
+}
 /* 달력 하단 여백 (bottom-bar 높이만큼) */
 #screen-calendar{padding-bottom:calc(70px + var(--safe-b))!important;}
 
@@ -753,6 +765,9 @@ body.dark .page-spinner{background:rgba(10,10,26,.8);}
 ════════════════════════════════════════════════════════ -->
 <!-- 하단 고정 툴바 (달력화면) -->
 <div id="bottom-bar">
+  <button class="bb-btn" id="btn-notice-mgr" title="공지사항 관리">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+  </button>
   <select id="filter-select" class="bb-btn bb-select">
     <option value="ALL">전체</option>
     <option value="A">A조</option>
@@ -1334,14 +1349,14 @@ function getUpcomingMemos() {
     const is24h = shift.length === 2 && shift[0] === shift[1] && /^[A-D]$/.test(shift[0]);
     const isNonStandard = entry?.shift && entry.shift !== calcedShift;
     if (is24h) {
-      items.push({ text: `[${dayLabel}] ${shift[0]}조 24시간 근무`, is24h: true });
+      items.push({ text: `[${dayLabel}] ${shift[0]}조 24시간 근무`, is24h: true, dayIdx: i });
     } else if (isNonStandard) {
-      items.push({ text: `[${dayLabel}] 교대조 변경: ${shift}`, is24h: false });
+      items.push({ text: `[${dayLabel}] 교대조 변경: ${shift}`, is24h: false, dayIdx: i });
     }
     if (!entry?.memo?.length) continue;
     entry.memo.forEach(line => {
       if (line.startsWith('알림:')) return; // 알림은 별도 팝업으로 처리
-      items.push({ text: `[${dayLabel}] ${fmtLine(line)}`, is24h: false });
+      items.push({ text: `[${dayLabel}] ${fmtLine(line)}`, is24h: false, dayIdx: i });
     });
   }
   return items;
@@ -1356,6 +1371,22 @@ function getDecemberDohWarnings() {
   return [`<span class="ticker-item" style="color:#ef4444;font-weight:800"><span class="ticker-dot" style="background:#ef4444"></span>⚠️ 연말 대휴 미소진 — ${names} — 12월 말까지 소진하세요</span>`];
 }
 
+// 날짜 거리(0=오늘,1=내일…)에 따른 티커 색상
+const TICKER_DAY_COLORS = [
+  'var(--ticker-text)',  // 0: 오늘 — 기본 파란색
+  '#f59e0b',            // 1: 내일 — 주황
+  '#10b981',            // 2: 모레 — 초록
+  '#8b5cf6',            // 3: +3일 — 보라
+  '#94a3b8',            // 4: +4일 — 회색
+];
+function tickerDayIndex(dateStr) {
+  if (!dateStr) return 0;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr + 'T00:00:00'); d.setHours(0,0,0,0);
+  const diff = Math.round((d - today) / 86400000);
+  return Math.min(Math.max(diff, 0), TICKER_DAY_COLORS.length - 1);
+}
+
 function renderNotices() {
   const wrap  = document.getElementById('ticker-wrap');
   const track = document.getElementById('ticker-track');
@@ -1366,14 +1397,14 @@ function renderNotices() {
   const noticeItems = _notices.map(n => {
     const isFuture = n.start_date && n.start_date > nowStr;
     const prefix = isFuture ? `[${n.start_date.slice(5).replace('-','/')}] ` : '';
-    const style = isFuture ? ' style="opacity:0.75"' : '';
-    return `<span class="ticker-item"${style}><span class="ticker-dot"></span>${escH(prefix + n.text)}</span>`;
+    const dayIdx = tickerDayIndex(isFuture ? n.start_date : null);
+    const color = TICKER_DAY_COLORS[dayIdx];
+    return `<span class="ticker-item" style="color:${color}"><span class="ticker-dot" style="background:${color}"></span>${escH(prefix + n.text)}</span>`;
   });
   const memoItems = getUpcomingMemos().map(m => {
-    const color = m.is24h ? 'var(--red)' : 'var(--grn)';
+    const color = m.is24h ? 'var(--red)' : TICKER_DAY_COLORS[m.dayIdx ?? 0];
     return `<span class="ticker-item" style="color:${color};${m.is24h?'font-weight:800':''}"><span class="ticker-dot" style="background:${color}"></span>${escH(m.text)}</span>`;
-  }
-  );
+  });
   const decItems = getDecemberDohWarnings();
   const allItems = [...decItems, ...noticeItems, ...memoItems];
 
@@ -2931,6 +2962,7 @@ document.getElementById('btn-logout').addEventListener('click', () => {
 
 // 공지 티커 탭 → 공지 관리 모달
 document.getElementById('ticker-wrap').addEventListener('click', openNoticeModal);
+document.getElementById('btn-notice-mgr').addEventListener('click', openNoticeModal);
 // 다크 모드 — 초기화
 (function(){
   if (localStorage.getItem('sc_dark') === '1') {
