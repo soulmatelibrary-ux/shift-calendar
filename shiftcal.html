@@ -1341,16 +1341,23 @@ function makeCell(dt, other) {
       cell.style.position = 'relative';
       cell.appendChild(bell);
     }
-    memos.slice(0, 4).forEach(line => {
+    // 대휴 라인 중 원본(대체근무) 날짜에 있는 것은 달력 셀에서 숨김
+    const subNames = new Set(memos.filter(m => m.startsWith('대체:')).map(m => m.replace('대체:','').trim()));
+    const displayMemos = memos.filter(line => {
+      if (!line.startsWith('대휴:')) return true;
+      const nm = line.match(/^대휴:([^(]+)/);
+      return !(nm && subNames.has(nm[1].trim()));
+    });
+    displayMemos.slice(0, 4).forEach(line => {
       const tag = document.createElement('div');
       tag.className = 'memo-tag ' + getMemoTagClass(line);
       tag.textContent = getMemoTagText(line);
       cell.appendChild(tag);
     });
-    if (memos.length > 4) {
+    if (displayMemos.length > 4) {
       const more = document.createElement('div');
       more.className = 'memo-more';
-      more.textContent = `+${memos.length - 4}`;
+      more.textContent = `+${displayMemos.length - 4}`;
       cell.appendChild(more);
     }
   }
