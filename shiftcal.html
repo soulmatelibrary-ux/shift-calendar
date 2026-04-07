@@ -1157,8 +1157,8 @@ function isShiftWorker(staffName, dateStr) {
 
 /* ── 메모 타입 표시 레이블 (fmtLine / getMemoTagText 공유) ── */
 const MEMO_LABELS = {
-  '연차':'연차', '대체':'대체근무', '대휴':'대휴사용',
-  '공가':'공가', '교육':'교육훈련', '출장':'출장', '기타':'기타', '알림':'알림'
+  '연차':'연차', '대체':'대체', '대휴':'대휴',
+  '공가':'공가', '교육':'교육', '출장':'출장', '기타':'기타', '알림':'알림'
 };
 
 /* ── State ──────────────────────────────────────────────── */
@@ -1804,7 +1804,7 @@ function getMemoTagText(line) {
 
 function getMemoTagClass(line) {
   if (/^알림/.test(line))             return 'mt-alert';
-  if (/^(연차|대휴|교육)/.test(line)) return 'mt-red';
+  if (/^(연차|대휴|교육)/.test(line) || line.includes('설치')) return 'mt-red';
   if (/^(대체|출장)/.test(line))      return 'mt-blue';
   if (/^기타/.test(line))             return 'mt-gray';
   return 'mt-green';
