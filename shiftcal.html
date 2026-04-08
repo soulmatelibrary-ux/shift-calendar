@@ -2276,6 +2276,33 @@ async function onSaveMemo() {
       }
     }
 
+    // ── "설치" 메모 → 2주 후 알림문서 보내기 자동 추가 제안 ──
+    if (savedCount > 0 && line.includes('설치')) {
+      const baseDate = targetDates[targetDates.length - 1];
+      const alertD = new Date(baseDate + 'T00:00:00');
+      alertD.setDate(alertD.getDate() + 14);
+      const alertDateStr = fmtDate(alertD);
+      if (confirm(`"설치" 메모가 감지되었습니다.\n${alertDateStr}에 "알림문서 보내기" 알림을 추가하시겠습니까?`)) {
+        try {
+          let alertRow = _monthData[alertDateStr];
+          if (!alertRow) {
+            const rows = await sbGet('shift_data', `date=eq.${alertDateStr}&select=date,shift,memo`);
+            alertRow = rows[0] || null;
+          }
+          const alertMemo = alertRow?.memo || [];
+          const alertLine = '알림:알림문서 보내기';
+          if (!alertMemo.includes(alertLine)) {
+            const newAlertMemo = [...alertMemo, alertLine];
+            await writeMemo(alertDateStr, newAlertMemo, alertRow);
+            if (_monthData[alertDateStr]) updateLocalCache(alertDateStr, newAlertMemo);
+            toast(`${alertDateStr}에 알림 추가 완료`);
+          } else {
+            toast('이미 해당 날짜에 알림이 있습니다');
+          }
+        } catch(e) { toast('알림 추가 실패: ' + e.message); }
+      }
+    }
+
     _addOpen = false;
     rebuildSheet();
     renderCalendar();
