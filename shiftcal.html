@@ -1196,7 +1196,13 @@ async function loadYearData(y) {
 async function loadStaff() {
   const rows = await sbGet('staff_master',
     'select=id,name,grade,shift,from_date,to_date&order=shift,name');
-  _staff = rows;
+  // 중복 제거 (이름+시작일+종료일 기준, 최신 id 우선)
+  const dedup = new Map();
+  rows.forEach(r => {
+    const key = `${r.name}|${r.from_date}|${r.to_date||''}`;
+    if (!dedup.has(key) || r.id > dedup.get(key).id) dedup.set(key, r);
+  });
+  _staff = [...dedup.values()];
 }
 
 async function loadNotices() {
@@ -1915,6 +1921,14 @@ function staffOpts(dateStr, opts = {}) {
     (!s.from_date || s.from_date <= dateStr) &&
     (!s.to_date   || s.to_date   >= dateStr)
   );
+  // 같은 이름 중복 제거 (최신 레코드 우선 — from_date가 더 큰 것)
+  const nameMap = new Map();
+  active.forEach(s => {
+    if (!nameMap.has(s.name) || (s.from_date > nameMap.get(s.name).from_date)) {
+      nameMap.set(s.name, s);
+    }
+  });
+  active = [...nameMap.values()];
   if (!active.length) return '<option value="">— 직원 없음 —</option>';
   if (opts.sortDayFirst) {
     // 대체용: 일근자(비교대) 우선
@@ -2603,7 +2617,7 @@ async function uploadJson(file) {
       }
     }
 
-    // ── 직원 마스터 → Supabase staff_master 동기화 ──
+    // ── 직원 마스터 → Supabase staff_master 동기화 (중복 방지) ──
     let masterCount = 0;
     if (Array.isArray(data.staffMaster) && data.staffMaster.length) {
       const masterRows = data.staffMaster
@@ -2617,12 +2631,23 @@ async function uploadJson(file) {
           to_date:   s.to_date   || null,
           no_excel:  !!s.no_excel
         }));
+      // 중복 제거 (이름+사번+시작일+종료일 기준)
+      const masterDedup = new Map();
+      masterRows.forEach(r => {
+        const key = `${r.name}|${r.emp_no}|${r.from_date}|${r.to_date||''}`;
+        if (!masterDedup.has(key)) masterDedup.set(key, r);
+      });
+      const uniqueMasterRows = [...masterDedup.values()];
+      // 기존 staff_master 전체 삭제 후 재삽입
+      await fetch(SB_URL + '/rest/v1/staff_master?name=neq.', {
+        method: 'DELETE', headers: SB_HDR
+      });
       // 50건씩 배치 upsert
-      for (let i = 0; i < masterRows.length; i += 50) {
-        await sbPost('staff_master', masterRows.slice(i, i + 50),
+      for (let i = 0; i < uniqueMasterRows.length; i += 50) {
+        await sbPost('staff_master', uniqueMasterRows.slice(i, i + 50),
           'resolution=merge-duplicates,return=minimal');
       }
-      masterCount = masterRows.length;
+      masterCount = uniqueMasterRows.length;
     }
 
     await Promise.all([loadMonth(curY, curM), loadYearData(curY), loadCarry(curY), loadNotices()]);
