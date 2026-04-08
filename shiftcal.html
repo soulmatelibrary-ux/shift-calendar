@@ -1198,11 +1198,25 @@ async function loadStaff() {
     'select=id,name,grade,shift,from_date,to_date&order=shift,name');
   // 중복 제거 (이름+시작일+종료일 기준, 최신 id 우선)
   const dedup = new Map();
+  const dupIds = [];
   rows.forEach(r => {
     const key = `${r.name}|${r.from_date}|${r.to_date||''}`;
-    if (!dedup.has(key) || r.id > dedup.get(key).id) dedup.set(key, r);
+    if (dedup.has(key)) {
+      const existing = dedup.get(key);
+      if (r.id > existing.id) { dupIds.push(existing.id); dedup.set(key, r); }
+      else { dupIds.push(r.id); }
+    } else { dedup.set(key, r); }
   });
   _staff = [...dedup.values()];
+  // DB에서 중복 행 삭제 (백그라운드)
+  if (dupIds.length) {
+    dupIds.forEach(id => {
+      fetch(`${SB_URL}/rest/v1/staff_master?id=eq.${id}`, {
+        method: 'DELETE', headers: getH()
+      }).catch(() => {});
+    });
+    console.log(`staff_master 중복 ${dupIds.length}건 DB에서 삭제`);
+  }
 }
 
 async function loadNotices() {
