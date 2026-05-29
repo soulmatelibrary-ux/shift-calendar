@@ -3347,9 +3347,22 @@ async function saveSubscription(sub) {
 }
 
 // "알림 켜기" 버튼 — 반드시 사용자 탭(제스처) 안에서 호출되어야 iOS 권한 팝업이 뜸
+// 홈화면 PWA(standalone)로 실행 중인지
+function isStandalone() {
+  return window.navigator.standalone === true ||
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+}
+
 async function enablePush() {
   if (!pushSupported()) {
-    toast('iOS는 Safari로 "홈 화면에 추가"한 앱에서만 알림이 가능합니다');
+    // iOS는 Safari 홈화면 앱에서만 푸시 가능 → 설치 방법 안내
+    showAlertModal({
+      icon: '🔔',
+      heading: '알림은 Safari에서만',
+      title: '아이폰은 "홈 화면에 추가" 후 알림을 켤 수 있어요',
+      sub: '① Safari로 열기 (크롬 불가)  →  ② 공유 버튼 →  "홈 화면에 추가"  →  ③ 홈 화면 아이콘으로 실행 후 다시 🔔 누르기',
+      theme: 'safety'
+    });
     return;
   }
   try {

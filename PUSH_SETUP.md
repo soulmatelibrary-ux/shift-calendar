@@ -26,8 +26,9 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "anon_all_push_subs" ON push_subscriptions
-  FOR ALL TO anon USING (true) WITH CHECK (true);
+-- 앱은 공유 계정으로 로그인(authenticated) 상태로 insert하므로 anon이 아닌 public(anon+authenticated)에 허용
+CREATE POLICY "all_push_subs" ON push_subscriptions
+  FOR ALL TO public USING (true) WITH CHECK (true);
 
 -- 3분 배치 발송용 마지막 발송 시각 (단일 행)
 CREATE TABLE IF NOT EXISTS push_state (
