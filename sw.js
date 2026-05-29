@@ -57,3 +57,35 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
+// Web Push: 서버(Supabase Edge Function)가 보낸 푸시 수신 → 알림 표시
+// iOS 16.4+ Safari 홈화면 PWA에서만 동작
+self.addEventListener('push', event => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
+  const title = data.title || '교대일정 변경';
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || '일정이 변경되었습니다',
+      icon: 'icons/icon-192.png',
+      badge: 'icons/icon-192.png',
+      tag: data.tag || 'shiftcal',       // 같은 tag면 알림 1개로 합쳐짐(폭주 완화)
+      renotify: !!data.renotify,         // 새 묶음 도착 시 다시 알림(소리/진동)
+      data: { url: data.url || './shiftcal.html' }
+    })
+  );
+});
+
+// 알림 탭 → 이미 열린 창 포커스, 없으면 새로 열기
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || './shiftcal.html';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
+      for (const c of cs) {
+        if ('focus' in c) return c.focus();
+      }
+      return clients.openWindow(target);
+    })
+  );
+});
