@@ -55,16 +55,26 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ init: true }), { status: 200 });
     }
 
-    // 2. 지난 주기 동안 바뀐 행 (오래된 순)
+    // 2. 지난 주기 동안 바뀐 행 (오래된 순). limit은 비정상적 대량에 대한 런어웨이 가드.
     const rowsRes = await fetch(
       `${SB_URL}/rest/v1/shift_data?updated_at=gt.${encodeURIComponent(since)}` +
-      `&select=date,memo,updated_at&order=updated_at.asc`,
+      `&select=date,memo,updated_at&order=updated_at.asc&limit=2000`,
       { headers: sbHeaders },
     );
     const rows: { date: string; memo: string[]; updated_at: string }[] = await rowsRes.json();
     if (!rows.length) {
       return new Response(JSON.stringify({ sent: 0, changes: 0 }), { status: 200 });
     }
+
+    // 2-1. 발송 전에 먼저 last_pushed_at을 선점 갱신(=이번에 본 최신 updated_at).
+    //      발송 후 갱신하면 PATCH 실패 시 다음 주기에 같은 변경을 또 보내 중복 알림이 됨.
+    //      먼저 갱신하면 최악의 경우 "발송 실패 시 누락"이지만, 중복 스팸보다 낫고 다음 변경 때 재알림됨.
+    const newSince = rows[rows.length - 1].updated_at;
+    await fetch(`${SB_URL}/rest/v1/push_state?id=eq.1`, {
+      method: "PATCH",
+      headers: { ...sbHeaders, "Prefer": "return=minimal" },
+      body: JSON.stringify({ last_pushed_at: newSince }),
+    });
 
     // 3. 요약 본문 — 단건이면 메모까지, 여러 건이면 날짜 목록으로 묶음
     let body: string;
@@ -112,15 +122,6 @@ Deno.serve(async (req) => {
         { method: "DELETE", headers: sbHeaders },
       )
     ));
-
-    // 6. 마지막 발송 시각 = 이번에 처리한 가장 최신 updated_at
-    //    (NOW()가 아니라 실제 본 값으로 갱신 → 처리 중 들어온 변경을 놓치지 않음)
-    const newSince = rows[rows.length - 1].updated_at;
-    await fetch(`${SB_URL}/rest/v1/push_state?id=eq.1`, {
-      method: "PATCH",
-      headers: { ...sbHeaders, "Prefer": "return=minimal" },
-      body: JSON.stringify({ last_pushed_at: newSince }),
-    });
 
     return new Response(
       JSON.stringify({ sent, expired: expired.length, changes: rows.length, devices: subs.length }),

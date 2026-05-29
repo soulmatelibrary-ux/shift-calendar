@@ -45,34 +45,38 @@ CREATE INDEX IF NOT EXISTS idx_shift_data_updated_at ON shift_data(updated_at);
 
 새로 만들려면: `npx web-push generate-vapid-keys`
 
-## 3. Edge Function 배포
+## 3. Edge Function 배포 — ✅ 완료(CLI)
+프로젝트 `zonighcdnzdmsleltdmr`(shiftcal)에 이미 배포·시크릿 등록 완료:
 ```bash
-# Supabase CLI 설치/로그인 후, 프로젝트 루트에서
-supabase functions deploy send-push --no-verify-jwt
-
-# secret 등록 (개인키는 채팅으로 전달받은 값 사용)
-supabase secrets set \
-  VAPID_PUBLIC_KEY='BKbGDEEdPwSRBPZJ3D9tczsIE0b8YcMlQZqBOP-FuPjU9ekzcpGO9k7QGY8Mk3MOjtETPHkrSG8FK0Mgi7okyS4' \
-  VAPID_PRIVATE_KEY='<개인키-채팅으로-전달>' \
-  VAPID_SUBJECT='mailto:leesy@linkprice.com' \
-  WEBHOOK_SECRET='<임의의-긴-랜덤문자열>'
+supabase functions deploy send-push --project-ref zonighcdnzdmsleltdmr --use-api
+supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... \
+  VAPID_SUBJECT='mailto:leesy@linkprice.com' WEBHOOK_SECRET=... \
+  --project-ref zonighcdnzdmsleltdmr
 ```
-`--no-verify-jwt`: cron(pg_net)이 JWT 없이 호출하므로 필요.
-함수 URL을 아는 누구나 호출 가능하므로 `WEBHOOK_SECRET`을 꼭 설정 → 4단계 cron 헤더로 인증.
+등록된 시크릿: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `WEBHOOK_SECRET`.
+함수 URL을 아는 누구나 호출 가능하므로 4단계 cron 헤더(`x-webhook-secret`)로 인증.
+> 재배포 시 `--use-api`(Docker 불필요). 시크릿은 Dashboard → Functions → send-push → Secrets에서도 확인 가능(값은 비공개).
 
 ## 4. 3분 주기 스케줄 (pg_cron + pg_net)
-Dashboard → Database → Extensions에서 **`pg_cron`, `pg_net`** 활성화. 그 후 SQL Editor에서:
+Dashboard → Database → Extensions에서 **`pg_cron`, `pg_net`, `supabase_vault`** 활성화.
+
+시크릿을 cron 명령에 평문으로 박으면 `cron.job` 테이블에 그대로 남으므로, **Vault에 저장 후 참조**한다:
 ```sql
--- <ref> = 프로젝트 ref, <secret> = 3단계 WEBHOOK_SECRET 값
+-- 1) 시크릿을 Vault에 1회 저장 (<secret> = 3단계 WEBHOOK_SECRET 값)
+select vault.create_secret('<secret>', 'shiftcal_webhook_secret');
+
+-- 2) 스케줄 등록 (<ref> = 프로젝트 ref). 헤더 값은 Vault에서 읽어오므로 평문 미저장.
 select cron.schedule(
   'shiftcal-push-3min',
   '*/3 * * * *',
   $$
   select net.http_post(
-    url     := 'https://<ref>.functions.supabase.co/send-push',
+    url     := 'https://zonighcdnzdmsleltdmr.functions.supabase.co/send-push',
     headers := jsonb_build_object(
                  'Content-Type', 'application/json',
-                 'x-webhook-secret', '<secret>'
+                 'x-webhook-secret',
+                 (select decrypted_secret from vault.decrypted_secrets
+                   where name = 'shiftcal_webhook_secret')
                ),
     body    := '{}'::jsonb
   );
