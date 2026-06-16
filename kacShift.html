@@ -177,6 +177,12 @@ body.dark .cal-day.is-24h{background:#422006!important;}
   background:#f3e8ff;color:#7c3aed;border:1px solid #a78bfa;
 }
 body.dark .shift-badge-custom{background:#1a0a2e;color:#c4b5fd;border-color:#5b21b6;}
+/* 원래 근무 표시 (변경된 날만) */
+.orig-shift{
+  font-size:clamp(7px, 1.9vw, 11px);font-weight:600;
+  color:var(--g5);text-align:center;width:100%;
+  line-height:1.2;margin-top:1px;
+}
 
 /* 팀별 색상 */
 .tc-A{color:#166534;} body.dark .tc-A{color:#86efac;}
@@ -612,6 +618,14 @@ function makeCell(dt, other) {
     badge.className = 'shift-badge-custom';
     badge.textContent = shift;
     shifts.appendChild(badge);
+  }
+
+  // 원래 계산 근무 표시 (변경된 날만)
+  if (isChanged) {
+    const orig = document.createElement('div');
+    orig.className = 'orig-shift';
+    orig.textContent = `(${calcedShift})`;
+    shifts.appendChild(orig);
   }
 
   cell.appendChild(shifts);
