@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>교대근무 조회</title>
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="근무조회">
+  <link rel="icon" href="favicon.ico">
+  <meta name="theme-color" content="#2563eb">
+
+  <style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+[hidden]{display:none!important;}
+:root{
+  --pri:#2563eb;--pri-lt:#dbeafe;
+  --red:#dc2626;--grn:#16a34a;
+  --bg-panel:#ffffff;
+  --bg-cell:rgba(255,255,255,0.72);
+  --bg-cell-other:rgba(255,255,255,0.42);
+  --bg-header:rgba(255,255,255,0.75);
+  --border:rgba(180,180,220,0.45);
+  --text:#1f2937;--text-muted:#6b7280;--text-dim:#9ca3af;
+  --g0:#ffffff;--g1:#f9fafb;--g2:rgba(243,244,246,0.8);--g3:#e5e7eb;
+  --g4:rgba(140,150,200,0.65);--g5:#9ca3af;--g6:#6b7280;--g7:#374151;--g8:#1f2937;--g9:#111827;
+  --holiday-bg:rgba(255,240,239,0.88);--holiday-text:#bf3f36;
+  --my-shift-bg:rgba(219,234,254,0.82);
+  --today-bg:rgba(219,234,254,0.96);
+  --r:12px;--sh:0 4px 24px rgba(0,0,0,.12);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+body.dark{
+  --bg-panel:rgba(20,20,40,0.95);
+  --bg-cell:rgba(255,255,255,0.06);
+  --bg-cell-other:rgba(255,255,255,0.03);
+  --bg-header:rgba(10,10,26,0.82);
+  --border:rgba(255,255,255,0.1);
+  --text:#f0f0f0;--text-muted:#b0bac6;--text-dim:#6b7280;
+  --g0:rgba(26,26,46,0.95);--g1:rgba(17,17,34,0.9);--g2:rgba(30,30,50,0.8);--g3:rgba(46,46,70,0.8);
+  --g4:rgba(255,255,255,0.15);--g5:#6b7280;--g6:#9ca3af;--g7:#d1d5db;--g8:#e8e8e8;--g9:#f3f4f6;
+  --holiday-bg:rgba(30,10,10,0.9);--holiday-text:#ff6b6b;
+  --my-shift-bg:rgba(13,24,40,0.85);
+  --today-bg:rgba(15,31,58,0.95);
+  --pri:#3b82f6;--pri-lt:rgba(15,31,58,0.9);
+}
+html,body{height:100%;-webkit-text-size-adjust:100%;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:15px;color:var(--text);min-height:100dvh;
+  transition:color .2s;
+}
+body::before{
+  content:'';position:fixed;inset:0;z-index:-1;
+  background:linear-gradient(135deg,#e8f0fe 0%,#f3e8ff 50%,#e0f2fe 100%);
+  transition:background .3s;
+}
+body.dark::before{
+  background:linear-gradient(135deg,#0a0a1a 0%,#0d0816 45%,#0a1020 100%);
+}
+
+/* ─── Calendar Screen ─── */
+#screen-calendar{
+  display:flex;flex-direction:column;height:100dvh;
+  max-width:800px;margin:0 auto;overflow:hidden;
+  padding-bottom:calc(60px + var(--safe-b));
+}
+
+/* Header */
+.cal-header{
+  background:var(--bg-header);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  padding:10px 12px;display:flex;align-items:center;gap:7px;
+  position:sticky;top:0;z-index:10;
+}
+.cal-nav-btn,.cal-icon-btn{
+  width:40px;height:40px;border:none;background:var(--g2);border-radius:8px;
+  font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--text);flex-shrink:0;-webkit-tap-highlight-color:transparent;
+}
+.cal-nav-btn:active,.cal-icon-btn:active{background:var(--g3);}
+.cal-month-label{
+  flex:1;text-align:center;font-size:17px;font-weight:700;color:var(--text);
+  white-space:nowrap;
+}
+
+/* Day-of-week row */
+.cal-dow{
+  display:grid;grid-template-columns:repeat(7,1fr);
+  gap:1px;padding:3px 2px 0;
+}
+.dow-cell{
+  text-align:center;padding:3px 0;
+  font-size:12px;font-weight:800;letter-spacing:.3px;color:var(--text);
+}
+.dow-cell:first-child{color:var(--holiday-text);}
+.dow-cell:last-child{color:var(--pri);}
+
+/* Calendar grid */
+.cal-grid{
+  display:grid;grid-template-columns:repeat(7,1fr);
+  gap:1px;padding:1px 2px 4px;
+  flex:1;min-height:0;grid-auto-rows:1fr;
+}
+.cal-day{
+  border:1px solid var(--border);border-radius:6px;
+  padding:2px 1px 2px;cursor:default;
+  display:flex;flex-direction:column;align-items:center;
+  background:var(--bg-cell);position:relative;overflow:hidden;
+  box-shadow:0 1px 4px rgba(0,0,0,0.06);
+  transition:background .15s,border-color .15s;
+}
+.cal-day.other-month{background:var(--bg-cell-other);border-color:transparent;box-shadow:none;}
+.cal-day.other-month .day-num{color:var(--text-dim);}
+.cal-day.other-month .cell-shifts{opacity:.25;}
+.cal-day.is-holiday{background:var(--holiday-bg)!important;}
+.cal-day.is-sun .day-num{color:var(--holiday-text)!important;}
+.cal-day.is-sat .day-num{color:var(--pri);}
+.cal-day.is-holiday .day-num{color:var(--holiday-text)!important;}
+.cal-day.is-today{background:var(--today-bg);border-color:var(--pri);border-width:2px;box-shadow:0 0 0 1px var(--pri);}
+.cal-day.my-shift{background:var(--my-shift-bg);}
+.cal-day.dim-shift .day-num,
+.cal-day.dim-shift .cell-shifts,
+.cal-day.dim-shift .hol-name{opacity:.15;}
+/* 24시간 근무 — 노란(앰버) 배경 */
+.cal-day.is-24h{background:#fde68a!important;}
+body.dark .cal-day.is-24h{background:#422006!important;}
+/* 교대조 변경된 날 — 주황 테두리 */
+.cal-day.is-changed{border-color:#f97316;border-width:2px;}
+
+.day-num{
+  width:100%;
+  display:flex;align-items:center;justify-content:flex-start;
+  padding-left:3px;
+  font-size:13px;font-weight:700;color:var(--g8);line-height:1.3;flex-shrink:0;
+}
+.is-today .day-num{
+  /* 오늘 날짜 숫자만 파란 원 */
+}
+.is-today .day-num span{
+  background:var(--pri);color:#fff!important;
+  width:20px;height:20px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;
+}
+
+/* 팀 글자 영역 */
+.cell-shifts{
+  flex:1;width:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:1px;padding:1px 0;
+  min-height:0;
+}
+/* 주간·야간 팀 글자 */
+.tl{
+  font-weight:900;line-height:1;text-align:center;width:100%;
+  font-size:clamp(14px, 4.5vw, 34px);
+}
+.tl-day { opacity:1; }
+.tl-night{ opacity:0.6; font-size:clamp(11px, 3.5vw, 28px); }
+/* 24h 단일 글자 */
+.tl-24h{
+  font-weight:900;line-height:1;text-align:center;width:100%;
+  font-size:clamp(18px, 5.5vw, 40px);
+}
+.tl-24h-label{
+  font-size:clamp(7px, 1.8vw, 12px);font-weight:700;
+  text-align:center;width:100%;opacity:.7;letter-spacing:.04em;
+}
+/* 비정규 교대조 배지 */
+.shift-badge-custom{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:2px 6px;border-radius:12px;
+  font-size:clamp(10px, 3vw, 16px);font-weight:800;
+  background:#f3e8ff;color:#7c3aed;border:1px solid #a78bfa;
+}
+body.dark .shift-badge-custom{background:#1a0a2e;color:#c4b5fd;border-color:#5b21b6;}
+
+/* 팀별 색상 */
+.tc-A{color:#166534;} body.dark .tc-A{color:#86efac;}
+.tc-B{color:#1d4ed8;} body.dark .tc-B{color:#93c5fd;}
+.tc-C{color:#b91c1c;} body.dark .tc-C{color:#fca5a5;}
+.tc-D{color:#c2410c;} body.dark .tc-D{color:#fdba74;}
+/* 공휴일 날의 팀 글자색 강제 */
+.cal-day.is-holiday .tl,
+.cal-day.is-holiday .tl-24h{color:var(--holiday-text)!important;}
+body.dark .cal-day{box-shadow:0 2px 8px rgba(0,0,0,0.3);}
+body.dark .cal-day.other-month{box-shadow:none;}
+
+.hol-name{
+  width:100%;font-size:7px;font-weight:600;color:var(--holiday-text);
+  padding:0 2px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-align:center;flex-shrink:0;
+}
+
+/* ─── Bottom Bar ─── */
+#bottom-bar{
+  position:fixed;left:50%;bottom:0;
+  transform:translateX(-50%);
+  width:100%;max-width:800px;
+  background:rgba(255,255,255,0.88);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid rgba(255,255,255,0.6);
+  box-shadow:0 -4px 20px rgba(0,0,0,0.08);
+  padding:10px 12px;padding-bottom:calc(14px + var(--safe-b));
+  display:flex;align-items:center;justify-content:center;gap:6px;z-index:50;
+}
+body.dark #bottom-bar{
+  background:rgba(12,12,28,0.88);
+  border-top:1px solid rgba(255,255,255,0.08);
+  box-shadow:0 -4px 20px rgba(0,0,0,0.4);
+}
+.bb-btn{
+  flex:1;height:44px;
+  border:1px solid rgba(0,0,0,0.08);
+  background:#ffffff;
+  border-radius:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.08),inset 0 1px 0 rgba(255,255,255,0.9);
+  font-size:13px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text);
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .1s,box-shadow .1s;
+  white-space:nowrap;padding:0;
+}
+.bb-btn:active{transform:translateY(1px);box-shadow:0 1px 3px rgba(0,0,0,0.1),inset 0 1px 0 rgba(255,255,255,0.7);}
+body.dark .bb-btn{
+  background:rgba(255,255,255,0.1);
+  border:1px solid rgba(255,255,255,0.12);
+  box-shadow:0 2px 8px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.08);
+  color:var(--text);
+}
+body.dark .bb-btn:active{background:rgba(255,255,255,0.16);transform:translateY(1px);}
+.bb-select{
+  -webkit-appearance:none;appearance:none;
+  text-align:center;text-align-last:center;font-weight:700;font-size:13px;
+  padding:0;cursor:pointer;
+}
+
+/* ─── 변경 알림 모달 ─── */
+#changes-modal{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;}
+#changes-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45);}
+#changes-card{
+  position:relative;width:min(360px,90vw);max-height:70vh;background:var(--bg-panel);
+  border-radius:var(--r);box-shadow:var(--sh);z-index:1;display:flex;flex-direction:column;overflow:hidden;
+}
+#changes-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;}
+#changes-title{flex:1;font-size:15px;font-weight:700;color:var(--text);}
+#changes-count{font-size:12px;color:var(--pri);font-weight:700;margin-left:8px;}
+#changes-list{overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:8px;flex:1;}
+.chg-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;background:var(--g1);border-radius:8px;
+}
+.chg-date{font-size:14px;font-weight:700;color:var(--text);flex:1;}
+.chg-shift{font-size:13px;font-weight:800;}
+#changes-ok{
+  margin:12px 14px;padding:12px;background:var(--pri);color:#fff;border:none;
+  border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;
+}
+
+/* ─── 비밀번호 모달 ─── */
+#pw-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.55);
+  display:flex;align-items:center;justify-content:center;z-index:600;
+}
+#pw-card{
+  background:var(--bg-panel);border-radius:var(--r);
+  box-shadow:var(--sh);padding:26px 22px;
+  width:min(280px,88vw);display:flex;flex-direction:column;gap:14px;
+}
+#pw-title{font-size:15px;font-weight:700;color:var(--text);text-align:center;}
+#pw-inp{
+  width:100%;padding:12px 14px;
+  border:1.5px solid var(--g3);border-radius:8px;
+  font-size:15px;font-family:inherit;color:var(--g8);background:var(--g0);
+  outline:none;-webkit-appearance:none;box-sizing:border-box;
+}
+#pw-inp:focus{border-color:var(--pri);}
+#pw-submit{
+  padding:13px;background:var(--pri);color:#fff;border:none;
+  border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;
+}
+#pw-submit:disabled{opacity:.5;cursor:not-allowed;}
+#pw-err{font-size:13px;color:var(--red);text-align:center;display:none;}
+
+/* ─── Loading & Toast ─── */
+.page-spinner{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.75);z-index:200;
+}
+body.dark .page-spinner{background:rgba(10,10,26,.8);}
+.spin-big{
+  width:40px;height:40px;border:3px solid var(--g3);border-top-color:var(--pri);
+  border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+#toast{
+  position:fixed;bottom:calc(var(--safe-b) + 72px);left:50%;
+  transform:translateX(-50%) translateY(16px);
+  background:var(--g9);color:#fff;padding:10px 20px;
+  border-radius:100px;font-size:14px;z-index:300;
+  opacity:0;transition:opacity .2s,transform .2s;
+  pointer-events:none;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  </style>
+</head>
+<body>
+
+<div id="screen-calendar">
+  <div class="cal-header">
+    <button class="cal-nav-btn" id="btn-prev" aria-label="이전 달">◀</button>
+    <div class="cal-month-label" id="month-label"></div>
+    <button class="cal-nav-btn" id="btn-next" aria-label="다음 달">▶</button>
+  </div>
+
+  <div class="cal-dow">
+    <div class="dow-cell">일</div><div class="dow-cell">월</div>
+    <div class="dow-cell">화</div><div class="dow-cell">수</div>
+    <div class="dow-cell">목</div><div class="dow-cell">금</div>
+    <div class="dow-cell">토</div>
+  </div>
+
+  <div class="cal-grid" id="cal-grid"></div>
+</div>
+
+<div id="bottom-bar">
+  <select id="filter-select" class="bb-btn bb-select">
+    <option value="ALL">전체</option>
+    <option value="A">A조</option>
+    <option value="B">B조</option>
+    <option value="C">C조</option>
+    <option value="D">D조</option>
+  </select>
+  <button class="bb-btn" id="btn-today">오늘</button>
+  <button class="bb-btn" id="btn-refresh">갱신</button>
+</div>
+
+<!-- 비밀번호 모달 (토큰 없을 때만 표시) -->
+<div id="pw-overlay" hidden>
+  <div id="pw-card">
+    <div id="pw-title">🔐 근무표 조회</div>
+    <input type="password" id="pw-inp" placeholder="비밀번호 입력"
+           autocomplete="current-password">
+    <div id="pw-err">비밀번호가 올바르지 않습니다</div>
+    <button id="pw-submit">확인</button>
+  </div>
+</div>
+
+<div class="page-spinner" id="page-spinner" hidden><div class="spin-big"></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+/* ── Config ── */
+const SB_URL  = 'https://zonighcdnzdmsleltdmr.supabase.co';
+const SB_KEY  = 'sb_publishable_XvmpVyCxCq2Z2otbRKfWYw_9BGI39cV';
+const SB_AUTH_EMAIL = atob('c3RhcnJlZDNAbmF2ZXIuY29t');
+const TOKEN_KEY   = 'sc_token';
+const REFRESH_KEY = 'sc_refresh';
+const SYNC_KEY    = 'sc_last_sync';
+let _accessToken  = null;
+
+/* ── Supabase REST (읽기 전용) ── */
+function getH() {
+  return {
+    'apikey': SB_KEY,
+    'Authorization': 'Bearer ' + (_accessToken || SB_KEY),
+    'Content-Type': 'application/json'
+  };
+}
+function sbSignal(ms = 12000) {
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
+async function refreshToken() {
+  const rt = localStorage.getItem(REFRESH_KEY);
+  if (!rt) return false;
+  try {
+    const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: rt }),
+      signal: sbSignal(8000)
+    });
+    if (!res.ok) return false;
+    const { access_token, refresh_token: newRt } = await res.json();
+    _accessToken = access_token;
+    localStorage.setItem(TOKEN_KEY, access_token);
+    if (newRt) localStorage.setItem(REFRESH_KEY, newRt);
+    return true;
+  } catch { return false; }
+}
+
+async function doAuth(pw) {
+  const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: SB_AUTH_EMAIL, password: pw }),
+    signal: sbSignal()
+  });
+  if (!res.ok) throw new Error('비밀번호가 올바르지 않습니다');
+  const { access_token, refresh_token } = await res.json();
+  _accessToken = access_token;
+  localStorage.setItem(TOKEN_KEY, access_token);
+  if (refresh_token) localStorage.setItem(REFRESH_KEY, refresh_token);
+}
+
+async function sbGet(table, qs = '') {
+  let r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`,
+    { headers: getH(), signal: sbSignal() });
+  if (r.status === 401) {
+    const ok = await refreshToken();
+    if (!ok) { showPwModal(); throw new Error('인증 필요'); }
+    r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`,
+      { headers: getH(), signal: sbSignal() });
+  }
+  if (!r.ok) throw new Error(`[${table}] ${r.status}`);
+  return r.json();
+}
+
+/* ── 교대조 계산 ── */
+const BASE_DATE = new Date('2025-06-02T00:00:00');
+const SHIFTS    = ['AB', 'DA', 'CD', 'BC'];
+function calcShift(dateStr) {
+  const diff = Math.floor((new Date(dateStr + 'T00:00:00') - BASE_DATE) / 864e5);
+  return SHIFTS[((diff % 4) + 4) % 4];
+}
+function isMyTeamDay(shift, team) {
+  if (!team) return true;
+  return shift.includes(team);
+}
+
+/* ── 공휴일 ── */
+const FIXED_HOL = {
+  '01-01':'신정','03-01':'삼일절','05-01':'노동절','05-05':'어린이날',
+  '06-06':'현충일','07-01':'창립기념일','07-17':'제헌절','08-15':'광복절',
+  '10-03':'개천절','10-09':'한글날','12-25':'성탄절'
+};
+const LUNAR_HOL = {
+  '2024-02-09':'설날 전날','2024-02-10':'설날','2024-02-11':'설날 다음날',
+  '2024-02-12':'대체공휴일(설날)','2024-04-10':'제22대 국회의원선거',
+  '2024-05-05':'어린이날','2024-05-06':'대체공휴일(어린이날)',
+  '2024-05-15':'부처님오신날',
+  '2024-09-16':'추석 전날','2024-09-17':'추석','2024-09-18':'추석 다음날',
+  '2025-01-28':'설날 전날','2025-01-29':'설날','2025-01-30':'설날 다음날',
+  '2025-03-03':'대체공휴일(삼일절)',
+  '2025-05-05':'부처님오신날(어린이날)','2025-05-06':'대체공휴일(어린이날)',
+  '2025-06-03':'제21대 대통령선거',
+  '2025-10-05':'추석 전날','2025-10-06':'추석','2025-10-07':'추석 다음날',
+  '2025-10-08':'대체공휴일(추석)',
+  '2026-02-16':'설날 전날','2026-02-17':'설날','2026-02-18':'설날 다음날',
+  '2026-03-02':'대체공휴일(삼일절)',
+  '2026-05-24':'부처님오신날','2026-05-25':'대체공휴일(부처님오신날)',
+  '2026-06-03':'제8회 지방선거',
+  '2026-08-17':'대체공휴일(광복절)',
+  '2026-09-24':'추석 전날','2026-09-25':'추석','2026-09-26':'추석 다음날',
+  '2026-09-28':'대체공휴일(추석)',
+  '2026-10-05':'대체공휴일(개천절)',
+  '2027-02-06':'설날 전날','2027-02-07':'설날','2027-02-08':'설날 다음날',
+  '2027-02-09':'대체공휴일(설날)','2027-05-13':'부처님오신날',
+  '2027-08-16':'대체공휴일(광복절)',
+  '2027-09-14':'추석 전날','2027-09-15':'추석','2027-09-16':'추석 다음날',
+  '2027-10-04':'대체공휴일(개천절)','2027-10-11':'대체공휴일(한글날)',
+  '2028-01-25':'설날 전날','2028-01-26':'설날','2028-01-27':'설날 다음날',
+  '2028-04-12':'제23대 국회의원선거','2028-05-02':'부처님오신날',
+  '2028-10-02':'추석 전날','2028-10-03':'추석(개천절)','2028-10-04':'추석 다음날',
+  '2028-10-05':'대체공휴일(개천절)',
+  '2029-02-12':'설날 전날','2029-02-13':'설날','2029-02-14':'설날 다음날',
+  '2029-05-05':'어린이날','2029-05-07':'대체공휴일(어린이날)',
+  '2029-05-20':'부처님오신날','2029-05-21':'대체공휴일(부처님오신날)',
+  '2029-09-21':'추석 전날','2029-09-22':'추석','2029-09-23':'추석 다음날',
+  '2029-09-24':'대체공휴일(추석)',
+  '2030-02-02':'설날 전날','2030-02-03':'설날','2030-02-04':'설날 다음날',
+  '2030-02-05':'대체공휴일(설날)',
+  '2030-05-05':'어린이날','2030-05-06':'대체공휴일(어린이날)',
+  '2030-05-09':'부처님오신날','2030-06-05':'제9회 지방선거',
+  '2030-09-11':'추석 전날','2030-09-12':'추석','2030-09-13':'추석 다음날',
+};
+function getHolidayName(y, m, d) {
+  const mmdd = `${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  return LUNAR_HOL[`${y}-${mmdd}`] || FIXED_HOL[mmdd] || null;
+}
+function isHoliday(y, m, d) { return !!getHolidayName(y, m, d); }
+
+/* ── 날짜 유틸 ── */
+const todayDt = new Date();
+const TODAY   = fmtDate(todayDt);
+function fmtDate(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+}
+
+/* ── 상태 ── */
+let curY, curM;
+let _monthData  = {};
+let _filterTeam = null;
+let _showAll    = true;
+let _monthLoading = false;
+
+/* ── 데이터 로드 ── */
+async function loadMonth(y, m) {
+  const first  = new Date(y, m-1, 1);
+  const last   = new Date(y, m, 0);
+  const gFrom  = fmtDate(new Date(y, m-1, 1 - first.getDay()));
+  const trailDow = last.getDay();
+  const gTo    = fmtDate(new Date(y, m, trailDow === 6 ? 0 : 6 - trailDow));
+  const rows   = await sbGet('shift_data',
+    `date=gte.${gFrom}&date=lte.${gTo}&select=date,shift`);
+  _monthData = {};
+  rows.forEach(r => { _monthData[r.date] = r; });
+}
+
+/* ── 달력 렌더 ── */
+function renderCalendar() {
+  document.getElementById('month-label').textContent = `${curY}년 ${curM}월`;
+  const sel = document.getElementById('filter-select');
+  if (sel) sel.value = (_filterTeam && !_showAll) ? _filterTeam : 'ALL';
+
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+
+  const first    = new Date(curY, curM-1, 1);
+  const last     = new Date(curY, curM, 0);
+  const startDow = first.getDay();
+
+  for (let i = 0; i < startDow; i++) {
+    grid.appendChild(makeCell(new Date(curY, curM-1, 1 - (startDow - i)), true));
+  }
+  for (let d = 1; d <= last.getDate(); d++) {
+    grid.appendChild(makeCell(new Date(curY, curM-1, d), false));
+  }
+  const total    = startDow + last.getDate();
+  const trailing = (7 - total % 7) % 7;
+  for (let i = 1; i <= trailing; i++) {
+    grid.appendChild(makeCell(new Date(curY, curM, i), true));
+  }
+}
+
+function makeCell(dt, other) {
+  const dStr        = fmtDate(dt);
+  const dow         = dt.getDay();
+  const row         = _monthData[dStr] || {};
+  const calcedShift = calcShift(dStr);
+  const shift       = row.shift || calcedShift;
+  const isChanged   = !other && row.shift && row.shift !== calcedShift;
+
+  const activeTeam  = (!_showAll && _filterTeam) ? _filterTeam : null;
+  const isMyTeam    = activeTeam ? isMyTeamDay(shift, activeTeam) : true;
+
+  const NORMAL_SHIFTS = ['AB','BC','CD','DA'];
+  const is24h   = shift.length === 2 && shift[0] === shift[1] && /^[A-D]$/.test(shift[0]);
+  const isNormal = NORMAL_SHIFTS.includes(shift);
+
+  const cell = document.createElement('div');
+  cell.className = 'cal-day' +
+    (other        ? ' other-month' : '') +
+    (dow === 0    ? ' is-sun'      : '') +
+    (dow === 6    ? ' is-sat'      : '') +
+    (dStr === TODAY ? ' is-today'  : '') +
+    (!other && isHoliday(dt.getFullYear(), dt.getMonth()+1, dt.getDate()) ? ' is-holiday' : '') +
+    (is24h        ? ' is-24h'      : '') +
+    (isChanged    ? ' is-changed'  : '') +
+    (activeTeam && isMyTeam  && !other ? ' my-shift'  : '') +
+    (activeTeam && !isMyTeam && !other ? ' dim-shift' : '');
+  cell.dataset.date = dStr;
+
+  // 날짜 숫자
+  const numEl = document.createElement('div');
+  numEl.className = 'day-num';
+  if (dStr === TODAY) {
+    numEl.innerHTML = `<span>${dt.getDate()}</span>`;
+  } else {
+    numEl.textContent = dt.getDate();
+  }
+  cell.appendChild(numEl);
+
+  // 교대조 표시 영역
+  const shifts = document.createElement('div');
+  shifts.className = 'cell-shifts';
+
+  if (is24h) {
+    // 24시간 근무: 팀 글자 하나 크게 + 라벨
+    const letter = document.createElement('div');
+    letter.className = `tl-24h tc-${shift[0]}`;
+    letter.textContent = shift[0];
+    shifts.appendChild(letter);
+    const label = document.createElement('div');
+    label.className = 'tl-24h-label';
+    label.textContent = '24H';
+    shifts.appendChild(label);
+  } else if (isNormal) {
+    // 정규 4조 교대: 주간(첫 글자) + 야간(두번째 글자)
+    const dayEl = document.createElement('div');
+    dayEl.className = `tl tl-day tc-${shift[0]}`;
+    dayEl.textContent = shift[0];
+    shifts.appendChild(dayEl);
+    const nightEl = document.createElement('div');
+    nightEl.className = `tl tl-night tc-${shift[1]}`;
+    nightEl.textContent = shift[1];
+    shifts.appendChild(nightEl);
+  } else {
+    // 비정규 교대조: 배지 형태
+    const badge = document.createElement('div');
+    badge.className = 'shift-badge-custom';
+    badge.textContent = shift;
+    shifts.appendChild(badge);
+  }
+
+  cell.appendChild(shifts);
+
+  // 공휴일 이름 (이번 달만)
+  if (!other) {
+    const holName = getHolidayName(dt.getFullYear(), dt.getMonth()+1, dt.getDate());
+    if (holName) {
+      const hn = document.createElement('div');
+      hn.className = 'hol-name';
+      hn.textContent = holName;
+      cell.appendChild(hn);
+    }
+  }
+
+  return cell;
+}
+
+/* ── 변경사항 감지 — 교대조 변경분만 ── */
+async function checkChanges() {
+  const lastSync = localStorage.getItem(SYNC_KEY);
+  if (!lastSync) return [];
+  try {
+    const rows = await sbGet('shift_data',
+      `updated_at=gt.${encodeURIComponent(lastSync)}&select=date,shift,updated_at&order=updated_at.desc&limit=50`);
+    return rows.filter(r => r.shift && r.shift !== calcShift(r.date));
+  } catch(e) { return []; }
+}
+
+function showChangesModal(changes) {
+  const old = document.getElementById('changes-modal');
+  if (old) old.remove();
+
+  const DOW = ['일','월','화','수','목','금','토'];
+  const maxShow = 20;
+  const shown = changes.slice(0, maxShow);
+  const extra = changes.length - maxShow;
+
+  const NORMAL_SHIFTS = ['AB','BC','CD','DA'];
+  const items = shown.map(r => {
+    const dt = new Date(r.date + 'T00:00:00');
+    const dateStr = `${dt.getMonth()+1}/${dt.getDate()} (${DOW[dt.getDay()]})`;
+    const is24h = r.shift.length === 2 && r.shift[0] === r.shift[1] && /^[A-D]$/.test(r.shift[0]);
+    const shiftCls = is24h ? 'shift-24h' : (NORMAL_SHIFTS.includes(r.shift) ? `shift-${r.shift}` : 'shift-other');
+    return `<div class="chg-item">
+      <div class="chg-date">${dateStr}</div>
+      <div class="chg-shift shift-badge ${shiftCls}">${escH(r.shift)}</div>
+    </div>`;
+  }).join('');
+
+  const modal = document.createElement('div');
+  modal.id = 'changes-modal';
+  modal.innerHTML = `
+    <div id="changes-backdrop"></div>
+    <div id="changes-card">
+      <div id="changes-header">
+        <span id="changes-title">교대조 변경사항</span>
+        <span id="changes-count">${changes.length}건</span>
+      </div>
+      <div id="changes-list">
+        ${items}
+        ${extra > 0 ? `<div style="text-align:center;color:var(--g5);font-size:12px;padding:6px">+${extra}건 더</div>` : ''}
+      </div>
+      <button id="changes-ok">확인</button>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const close = () => {
+    localStorage.setItem(SYNC_KEY, new Date().toISOString());
+    modal.remove();
+  };
+  document.getElementById('changes-backdrop').onclick = close;
+  document.getElementById('changes-ok').onclick = close;
+}
+
+/* ── 월 이동 ── */
+async function goMonth(delta) {
+  if (_monthLoading) return;
+  _monthLoading = true;
+  curM += delta;
+  if (curM > 12) { curM = 1; curY++; }
+  if (curM < 1)  { curM = 12; curY--; }
+  spinner(true);
+  try { await loadMonth(curY, curM); renderCalendar(); }
+  catch(e) { toast('로드 실패: ' + e.message); }
+  finally  { spinner(false); _monthLoading = false; }
+}
+
+/* ── 초기화 ── */
+async function initApp() {
+  curY = todayDt.getFullYear();
+  curM = todayDt.getMonth() + 1;
+  spinner(true);
+  try {
+    await loadMonth(curY, curM);
+  } catch(e) {
+    toast('서버 연결 실패 — 오프라인 모드');
+  } finally {
+    spinner(false);
+  }
+  renderCalendar();
+  initSwipe();
+
+  if (!localStorage.getItem(SYNC_KEY)) {
+    localStorage.setItem(SYNC_KEY, new Date().toISOString());
+  } else {
+    try {
+      const changes = await checkChanges();
+      if (changes.length) showChangesModal(changes);
+    } catch(e) {}
+  }
+}
+
+/* ── 터치 스와이프 ── */
+let _swipeInited = false;
+function initSwipe() {
+  if (_swipeInited) return;
+  _swipeInited = true;
+  const grid = document.getElementById('screen-calendar');
+
+  let tx = 0, ty = 0, tactive = false, locked = false;
+  grid.addEventListener('touchstart', e => {
+    tx = e.touches[0].clientX; ty = e.touches[0].clientY;
+    tactive = true; locked = false;
+  }, { passive: true });
+  grid.addEventListener('touchmove', e => {
+    if (!tactive) return;
+    const dx = e.touches[0].clientX - tx;
+    const dy = e.touches[0].clientY - ty;
+    if (!locked) {
+      if (Math.abs(dx) > Math.abs(dy)) { locked = true; e.preventDefault(); }
+      else { tactive = false; }
+    }
+  }, { passive: false });
+  grid.addEventListener('touchend', e => {
+    if (!tactive || !locked) { tactive = false; return; }
+    tactive = false;
+    const dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 50) { e.preventDefault(); goMonth(dx < 0 ? 1 : -1); }
+  }, { passive: false });
+
+  let mx = 0, mdown = false;
+  grid.addEventListener('mousedown', e => { mx = e.clientX; mdown = true; });
+  grid.addEventListener('mouseup', e => {
+    if (!mdown) return; mdown = false;
+    const dx = e.clientX - mx;
+    const dy = e.clientY - 0;
+    if (Math.abs(dx) > 50) goMonth(dx < 0 ? 1 : -1);
+  });
+  grid.addEventListener('mouseleave', () => { mdown = false; });
+}
+
+/* ── 유틸 ── */
+function escH(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2600);
+}
+function spinner(on) { document.getElementById('page-spinner').hidden = !on; }
+
+/* ── 이벤트 ── */
+document.getElementById('btn-prev').addEventListener('click', () => goMonth(-1));
+document.getElementById('btn-next').addEventListener('click', () => goMonth(1));
+
+document.getElementById('btn-today').addEventListener('click', async () => {
+  if (_monthLoading) return;
+  const ny = todayDt.getFullYear(), nm = todayDt.getMonth()+1;
+  if (ny !== curY || nm !== curM) {
+    _monthLoading = true; curY = ny; curM = nm;
+    spinner(true);
+    try { await loadMonth(curY, curM); }
+    catch(e) { toast('로드 실패'); }
+    finally { spinner(false); _monthLoading = false; }
+  }
+  renderCalendar();
+});
+
+document.getElementById('btn-refresh').addEventListener('click', async () => {
+  if (_monthLoading) return;
+  _monthLoading = true;
+  spinner(true);
+  try {
+    const changes = await checkChanges();
+    await loadMonth(curY, curM);
+    renderCalendar();
+    if (changes.length) {
+      showChangesModal(changes);
+    } else {
+      toast('갱신 완료 (변경된 교대조 없음)');
+      localStorage.setItem(SYNC_KEY, new Date().toISOString());
+    }
+  } catch(e) { toast('갱신 실패'); }
+  finally    { spinner(false); _monthLoading = false; }
+});
+
+document.getElementById('filter-select').addEventListener('change', e => {
+  const v = e.target.value;
+  if (v === 'ALL') { _showAll = true; _filterTeam = null; }
+  else             { _showAll = false; _filterTeam = v; }
+  renderCalendar();
+});
+
+document.addEventListener('keydown', e => {
+  if (document.getElementById('screen-calendar').hidden) return;
+  if (e.key === 'ArrowLeft')  goMonth(-1);
+  if (e.key === 'ArrowRight') goMonth(1);
+});
+
+/* ── 비밀번호 모달 ── */
+function showPwModal() {
+  document.getElementById('pw-overlay').hidden = false;
+  setTimeout(() => document.getElementById('pw-inp').focus(), 80);
+}
+function hidePwModal() {
+  document.getElementById('pw-overlay').hidden = true;
+}
+
+document.getElementById('pw-submit').addEventListener('click', async () => {
+  const pw  = document.getElementById('pw-inp').value;
+  const err = document.getElementById('pw-err');
+  const btn = document.getElementById('pw-submit');
+  if (!pw) return;
+  btn.disabled = true;
+  err.style.display = 'none';
+  try {
+    await doAuth(pw);
+    hidePwModal();
+    initApp();
+  } catch(e) {
+    err.style.display = 'block';
+    btn.disabled = false;
+  }
+});
+document.getElementById('pw-inp').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('pw-submit').click();
+});
+
+/* ── 다크모드 (shiftcal.html 설정 유지) ── */
+(function(){
+  if (localStorage.getItem('sc_dark') === '1') document.body.classList.add('dark');
+})();
+
+/* ── 시작: 저장된 토큰 재사용 → 없으면 비밀번호 입력 ── */
+_accessToken = localStorage.getItem(TOKEN_KEY);
+if (_accessToken) {
+  initApp();
+} else {
+  spinner(true);
+  refreshToken().then(ok => {
+    spinner(false);
+    if (ok) initApp();
+    else showPwModal();
+  }).catch(() => { spinner(false); showPwModal(); });
+}
+</script>
+</body>
+</html>
